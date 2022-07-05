@@ -1,6 +1,7 @@
 import numpy as np
+import scipy.linalg
 
-from .simulate import realization_tvAR1
+from .kernels import Kernel
 
 
 def estimate_autocovariance(X, t_0, k, kernel, bandwidth):
@@ -24,32 +25,48 @@ def estimate_autocovariance(X, t_0, k, kernel, bandwidth):
         ), axis=0) / (bandwidth * T)
 
 
-def estimate_parameters_tvAR1(T, n_approximations, alpha_fun, sigma_fun, kernel, bandwidth, u_list):
+def estimate_yw_coef(c_list):
     """
-    Estimates the curves alpha and sigma of n_approximations realizations of a tvAR(1) process.
-    
+    Estimates the Yule-Walker estimates for an AR(p) model. Supports multi-dimensional time series (for Monte Carlo simulations).
+
     --- parameters
-    - T: length of the process
-    - u_list: list of points between 0 and 1 where to evaluate the parameters.
-    - n_approximations: number of realizations of the stationary process used for the MC approximation.
+    - c_list: autocovariance sequence ((c_0, ..., c_p), ...)
     """
-    alpha_hat = np.empty((len(u_list), n_approximations))
-    sigma_hat = np.empty((len(u_list), n_approximations))
+    yw_coeff = np.empty(shape=c_list.shape) # (p+1, n_realizations)
+
+    for i in range(c_list.shape[1]):
+        gamma = c_list[1:, i]
+        Gamma = scipy.linalg.toeplitz(c=c_list[:-1, i], r=c_list[:-1, i])
+        alpha_hat = -np.dot(scipy.linalg.inv(Gamma), gamma) 
+        sigma_hat = np.sqrt(c_list[0, i] + np.dot(gamma, alpha_hat))
+        yw_coeff[:, i] = np.concatenate((alpha_hat, [sigma_hat]), axis=0)
+    
+    return yw_coeff
+
+
+def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarray, kernel: Kernel, bandwidth: float):
+    """
+    Returns the Yule-Walker estimates of a tvAR(p) model. Supports multi-dimensional time series for Monte-Carlo simulations.
+
+    --- parameters
+    - time_series: time series with shape (T, n_realizations)
+    - p: order of the tvAR(p) model
+    - u_list: list of points between 0 and 1 where to evaluate the parameters.
+    - kernel: kernel used for the autocovariance approximation
+    - bandwidth: bandwidth used in the non-parametric estimation
+    """
+    estimates = np.empty(shape=(u_list.shape[0], p + 1, time_series.shape[1])) # (alpha_1, ..., alpha_p, sigma) for each time series
+    T = time_series.shape[0]
 
     for i, u_0 in enumerate(u_list):
+        # define the window
         t_0 = int(u_0 * T)
         start = max(0, int(t_0 - bandwidth * T / 2))
         end = min(T-1, int(t_0 + bandwidth * T / 2))
+        time_series_window = time_series[start:(end+1), :]
 
-        # generate n_approximations realizations of X
-        epsilon = np.random.normal(0, 1, size=(T, n_approximations))
-        X = realization_tvAR1(np.zeros(n_approximations), T, alpha_fun, sigma_fun, epsilon)
-        X_window = X[start:(end+1), :]
+        # estimate the covariance and Yule-Walker estimates
+        c_list = np.array([estimate_autocovariance(time_series_window, t_0 - start, k, kernel, bandwidth) for k in range(p+1)]).reshape((p+1, -1))
+        estimates[i, :, :] = estimate_yw_coef(c_list)
 
-        # estimate alpha_hat and sigma_hat by taking the average of the approximations
-        c_1 = estimate_autocovariance(X_window, t_0 - start, 1, kernel, bandwidth)
-        c_0 = estimate_autocovariance(X_window, t_0 - start, 0, kernel, bandwidth)
-        alpha_hat[i] = (-c_1 / c_0)
-        sigma_hat[i] = np.sqrt(c_0 - c_1 * c_1 / c_0) # = sqrt(c_0 + alpha * c_1)
-
-    return alpha_hat, sigma_hat
+    return estimates

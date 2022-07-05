@@ -2,7 +2,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from utils.kernels import Kernel
-from utils.estimation import estimate_parameters_tvAR1
+from utils.estimation import estimate_parameters_tvAR_p
+from utils.simulate import realization_tvAR1
 
 
 def make_row_plot(alpha_fun, sigma_fun, alpha_hat, sigma_hat, u_list, subfig, n_realizations):
@@ -74,6 +75,7 @@ if __name__ == '__main__':
     # Parameters
     T_list = [100, 1000, 2000]
     u_list = np.linspace(0, 1, 100, endpoint=False)
+    n_realizations = 100
 
 
     fig = plt.figure(constrained_layout=True)
@@ -86,14 +88,17 @@ if __name__ == '__main__':
     fig_sigma.suptitle("Convergence of " + r"$\hat{\sigma}$" + " as " + r"$T \rightarrow \infty$", fontsize=13)
     subfigs_sigma = fig_sigma.subfigures(nrows=len(T_list), ncols=1)
 
-    for i in range(len(T_list)):
-        T = T_list[i]
+    for i, T in enumerate(T_list):
         bandwidth = 1 / (T ** (1/5))
         print(f"{T=}")
         print(f"{bandwidth=}")
 
         # Estimate coefficients
-        alpha_hat, sigma_hat = estimate_parameters_tvAR1(T, 100, alpha, sigma, Kernel("epanechnikov"), bandwidth, u_list)
+        epsilon = np.random.normal(0, 1, size=(T, n_realizations))
+        X = realization_tvAR1(np.zeros(n_realizations), epsilon, alpha, sigma)
+        yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth)
+        alpha_hat = yw_estimates[:, 0]
+        sigma_hat = yw_estimates[:, 1]
 
         # Plot 
         subfigs[i].suptitle(f"{T=}", fontweight="bold")

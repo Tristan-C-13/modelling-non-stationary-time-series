@@ -1,7 +1,7 @@
 import numpy as np
 
 
-def realization_tvAR1(X_0, T, alpha_fun, sigma_fun, epsilon):
+def realization_tvAR1(X_0, epsilon, alpha_fun, sigma_fun):
     """
     Returns a (multidimensional) realization of a tvAR(1) process.
 
@@ -11,7 +11,7 @@ def realization_tvAR1(X_0, T, alpha_fun, sigma_fun, epsilon):
     - sigma_fun: sigma in the tvAR(1) expression. Defined over [0, 1]
     - epsilon: noise generating the process. Can be multidimensional.
     """
-    assert epsilon.shape[0] == T
+    T = epsilon.shape[0]
     epsilon = epsilon.reshape(epsilon.shape[0], -1)
     X = np.empty(shape=(T, epsilon.shape[1]))
     X[0, :] = X_0
