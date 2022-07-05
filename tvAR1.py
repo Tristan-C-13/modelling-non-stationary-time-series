@@ -73,9 +73,9 @@ if __name__ == '__main__':
 
 
     # Parameters
-    T_list = [100, 1000, 2000]
+    T_list = [100, 1000, 10000]
     u_list = np.linspace(0, 1, 100, endpoint=False)
-    n_realizations = 100
+    n_realizations = 200
 
 
     fig = plt.figure(constrained_layout=True)
