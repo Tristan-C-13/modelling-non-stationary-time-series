@@ -31,27 +31,3 @@ def simulate_tvAR_p(p, X_0, epsilon, alpha_fun_list, sigma_fun):
         X[t, :] = np.sum(-X[t-p:t, :] * alpha_t_list, axis=0) + sigma_t * epsilon[t, :]
         
     return X
-
-
-
-    
-if __name__ == '__main__':
-    def alpha(t):
-        return -0.8 * np.cos(1.5 - np.cos(4 * np.pi * t))
-
-    def sigma(t):
-        return np.cos(t * np.pi / 2 + np.exp(t)) ** 2
-
-
-    # Parameters
-    T = 500
-    u_list = np.linspace(0, 1, 100, endpoint=False)
-    n_realizations = 2
-    np.random.seed(1234)
-    epsilon = np.random.normal(0, 1, size=T)
-    X = simulate_tvAR_p(1, 0, epsilon, alpha, sigma)
-
-    import matplotlib.pyplot as plt
-    fig, ax = plt.subplots()
-    ax.plot(X)
-    plt.show()
