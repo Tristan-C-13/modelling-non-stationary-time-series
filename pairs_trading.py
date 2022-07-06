@@ -12,28 +12,42 @@ sns.set_style("whitegrid")
 
 
 if __name__ == '__main__':
-    ## DATA & SPREAD
+    # DATA & SPREAD
+    
+    # BTC-USD / ETH-USD
     data = yf.download("BTC-USD ETH-USD", period="6mo", interval="1h")
     data = data['Close']
     data = data.dropna()
+    data = np.log(1 + data.pct_change()) # log returns
+    data = data.dropna()
     data['spread'] = data['BTC-USD'] - data['ETH-USD']
+    # data['ratio'] = data['BTC-USD'] / data['ETH-USD']
 
+    # PEP / COKE
     # data = yf.download("PEP COKE", period="6mo", interval="1h")
     # data = data['Close']
     # data = data.dropna()
     # data['spread'] = data['PEP'] - data['COKE']
     
+    # DPZ / PZZA
     # data = yf.download("DPZ PZZA", period="6mo", interval="1h")
     # data = data['Close']
     # data = data.dropna()
     # data['spread'] = data['DPZ'] - data['PZZA']
+
+    # MS / GS
+    # data = yf.download("MS GS", period="6mo", interval="1h")
+    # data = data['Close']
+    # data = data.dropna()
+    # data['spread'] = data['MS'] - data['GS']
+
 
 
     ## MODELLING
     u_list = np.linspace(0, 1, 100, endpoint=False)
     time_series = data['spread'].to_numpy()
     T = time_series.shape[0]
-    b_T = T ** (-1/6)
+    b_T = T ** (-1/5)
     print(f"{T=}")
     print(f"{b_T=}")
 
@@ -41,11 +55,14 @@ if __name__ == '__main__':
     alpha_hat = theta_hat[:, :-1, :]
     sigma_hat = theta_hat[:, -1, :]
 
-    fig, axs = plt.subplots(2, 1)
 
-    axs[0].plot(time_series, label="spread")
-    axs[1].plot(alpha_hat[:, 0], label="alpha")
-    axs[1].plot(sigma_hat, label="sigma")
+    # PLOT
+    fig = plt.figure(constrained_layout=True)
+    subfigs = fig.subfigures(2, 1)
+    sns.lineplot(data=data, ax=subfigs[0].subplots(1, 1))
+    axs = subfigs[1].subplots(1, 2)
+    axs[0].plot(u_list, alpha_hat[:, 0], label="alpha")
+    axs[1].plot(u_list, sigma_hat, label="sigma")
     for ax in axs.flat:
         ax.legend()
     plt.show()

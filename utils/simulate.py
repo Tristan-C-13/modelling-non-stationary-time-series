@@ -7,7 +7,7 @@ def simulate_tvAR_p(p, X_0, epsilon, alpha_fun_list, sigma_fun):
 
     --- parameters
     - p: order of the model
-    - X_0: initial value 
+    - X_0: initial value(s) 
     - epsilon: noise generating the process. Can be multidimensional.
     - alpha_fun_list: list containing the alpha coefficients in the tvAR(p) expression. All defined over [0, 1].
     - sigma_fun: sigma in the tvAR(p) expression. Defined over [0, 1].
