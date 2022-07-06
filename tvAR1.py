@@ -69,7 +69,7 @@ if __name__ == '__main__':
         return -0.8 * np.cos(1.5 - np.cos(4 * np.pi * t))
 
     def sigma(t):
-        return np.cos(t * np.pi / 2 + np.exp(t)) ** 2
+        return 0.15 + np.cos(t * np.pi / 2 + np.exp(t)) ** 2
 
 
     # Parameters
@@ -89,7 +89,7 @@ if __name__ == '__main__':
     subfigs_sigma = fig_sigma.subfigures(nrows=len(T_list), ncols=1)
 
     for i, T in enumerate(T_list):
-        bandwidth = 1 / (T ** (1/5))
+        bandwidth = T ** (-1/5)
         print(f"{T=}")
         print(f"{bandwidth=}")
 
