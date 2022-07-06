@@ -3,7 +3,7 @@ import matplotlib.pyplot as plt
 
 from utils.kernels import Kernel
 from utils.estimation import estimate_parameters_tvAR_p
-from utils.simulate import realization_tvAR1
+from utils.simulate import simulate_tvAR_p
 
 
 def make_row_plot(alpha_fun, sigma_fun, alpha_hat, sigma_hat, u_list, subfig, n_realizations):
@@ -95,7 +95,7 @@ if __name__ == '__main__':
 
         # Estimate coefficients
         epsilon = np.random.normal(0, 1, size=(T, n_realizations))
-        X = realization_tvAR1(np.zeros(n_realizations), epsilon, alpha, sigma)
+        X = simulate_tvAR_p(1, np.zeros(n_realizations), epsilon, [alpha], sigma)
         yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth)
         alpha_hat = yw_estimates[:, 0, :]
         sigma_hat = yw_estimates[:, 1, :]

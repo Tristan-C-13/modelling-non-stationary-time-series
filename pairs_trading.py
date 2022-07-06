@@ -13,27 +13,27 @@ sns.set_style("whitegrid")
 
 if __name__ == '__main__':
     ## DATA & SPREAD
-    # data = yf.download("BTC-USD ETH-USD", period="6mo", interval="1h")
-    # data = data['Close']
-    # data = data.dropna()
-    # data['spread'] = data['BTC-USD'] - data['ETH-USD']
+    data = yf.download("BTC-USD ETH-USD", period="6mo", interval="1h")
+    data = data['Close']
+    data = data.dropna()
+    data['spread'] = data['BTC-USD'] - data['ETH-USD']
 
     # data = yf.download("PEP COKE", period="6mo", interval="1h")
     # data = data['Close']
     # data = data.dropna()
     # data['spread'] = data['PEP'] - data['COKE']
     
-    data = yf.download("DPZ PZZA", period="6mo", interval="1h")
-    data = data['Close']
-    data = data.dropna()
-    data['spread'] = data['DPZ'] - data['PZZA']
+    # data = yf.download("DPZ PZZA", period="6mo", interval="1h")
+    # data = data['Close']
+    # data = data.dropna()
+    # data['spread'] = data['DPZ'] - data['PZZA']
 
 
     ## MODELLING
     u_list = np.linspace(0, 1, 100, endpoint=False)
     time_series = data['spread'].to_numpy()
     T = time_series.shape[0]
-    b_T = T ** (-1/5)
+    b_T = T ** (-1/6)
     print(f"{T=}")
     print(f"{b_T=}")
 

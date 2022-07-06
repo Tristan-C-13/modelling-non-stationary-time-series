@@ -1,24 +1,31 @@
 import numpy as np
 
 
-def realization_tvAR1(X_0, epsilon, alpha_fun, sigma_fun):
+def simulate_tvAR_p(p, X_0, epsilon, alpha_fun_list, sigma_fun):
     """
-    Returns a (multidimensional) realization of a tvAR(1) process.
+    Returns a (multidimensional) realization of a tvAR(p) process.
 
     --- parameters
+    - p: order of the model
     - X_0: initial value 
-    - alpha_fun: alpha in the tvAR(1) expression. Defined over [0, 1]
-    - sigma_fun: sigma in the tvAR(1) expression. Defined over [0, 1]
     - epsilon: noise generating the process. Can be multidimensional.
+    - alpha_fun_list: list containing the alpha coefficients in the tvAR(p) expression. All defined over [0, 1].
+    - sigma_fun: sigma in the tvAR(p) expression. Defined over [0, 1].
     """
-    T = epsilon.shape[0]
-    epsilon = epsilon.reshape(epsilon.shape[0], -1)
-    X = np.empty(shape=(T, epsilon.shape[1]))
-    X[0, :] = X_0
+    if not isinstance(X_0, np.ndarray):
+        X_0 = np.array(X_0)
     
-    for t in range(1, T):
-        alpha_t = alpha_fun(t / T)
-        sigma_t = sigma_fun(t / T)
-        X[t, :] = X[t-1, :] * (-alpha_t) + sigma_t * epsilon[t, :]
+    X_0 = X_0.reshape(p, -1)
+    epsilon = epsilon.reshape(epsilon.shape[0], -1)
+    T, n_realizations = epsilon.shape
+    assert X_0.shape == (p, n_realizations)
+
+    X = np.empty(shape=epsilon.shape)
+    X[:p, :] = X_0
+
+    for t in range(p, T):
+        alpha_t_list = [alpha_fun(t / T) for alpha_fun in alpha_fun_list]
+        sigma_t= sigma_fun(t / T)
+        X[t, :] = -X[t-p:t, :] * alpha_t_list + sigma_t * epsilon[t, :]
         
     return X
