@@ -1,3 +1,4 @@
+from time import time
 import numpy as np
 import scipy.linalg
 
@@ -55,7 +56,8 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
     - kernel: kernel used for the autocovariance approximation
     - bandwidth: bandwidth used in the non-parametric estimation
     """
-    estimates = np.empty(shape=(u_list.shape[0], p + 1, time_series.shape[1])) # (alpha_1, ..., alpha_p, sigma) for each time series
+    time_series = time_series.reshape(time_series.shape[0], -1) # make sure time series shape is (T, n_realizations)
+    estimates = np.empty(shape=(u_list.shape[0], p + 1, time_series.shape[1])) # (alpha_1, ..., alpha_p, sigma) for each time series at each point u
     T = time_series.shape[0]
 
     for i, u_0 in enumerate(u_list):
