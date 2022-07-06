@@ -14,9 +14,11 @@ def simulate_tvAR_p(p, X_0, epsilon, alpha_fun_list, sigma_fun):
     """
     if not isinstance(X_0, np.ndarray):
         X_0 = np.array(X_0)
+    if not isinstance(alpha_fun_list, list):
+        alpha_fun_list = list(alpha_fun_list)
     
-    X_0 = X_0.reshape(p, -1)
     epsilon = epsilon.reshape(epsilon.shape[0], -1)
+    X_0 = X_0.reshape(p, -1)
     T, n_realizations = epsilon.shape
     assert X_0.shape == (p, n_realizations)
 
