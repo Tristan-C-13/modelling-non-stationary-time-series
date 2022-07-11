@@ -14,8 +14,7 @@ sns.set_style("whitegrid")
 
 
 if __name__ == '__main__':
-    # DATA & SPREAD
-    
+    ## DATA & SPREAD
     # BTC-USD / ETH-USD
     data = yf.download("BTC-USD ETH-USD", period="1y", interval="1h")
     data = data['Close']
@@ -23,27 +22,6 @@ if __name__ == '__main__':
     data = np.log(1 + data.pct_change()) # log returns
     data = data.dropna()
     data['spread'] = data['BTC-USD'] - data['ETH-USD']
-    # data['ratio'] = data['BTC-USD'] / data['ETH-USD']
-
-    # PEP / COKE
-    # data = yf.download("PEP COKE", period="6mo", interval="1h")
-    # data = data['Close']
-    # data = data.dropna()
-    # data['spread'] = data['PEP'] - data['COKE']
-    
-    # DPZ / PZZA
-    # data = yf.download("DPZ PZZA", period="6mo", interval="1h")
-    # data = data['Close']
-    # data = data.dropna()
-    # data['spread'] = data['DPZ'] - data['PZZA']
-
-    # MS / GS
-    # data = yf.download("MS GS", period="6mo", interval="1h")
-    # data = data['Close']
-    # data = data.dropna()
-    # data['spread'] = data['MS'] - data['GS']
-
-
 
     ## MODELLING
     u_list = np.linspace(0, 1, 100, endpoint=False)
