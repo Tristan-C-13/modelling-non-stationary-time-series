@@ -1,3 +1,4 @@
 .vscode
 utils/__pycache__/estimation.cpython-39.pyc
 utils/__pycache__/simulate.cpython-39.pyc
+data

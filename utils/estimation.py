@@ -72,3 +72,16 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
         estimates[i, :, :] = estimate_yw_coef(c_list)
 
     return estimates
+
+
+def estimate_future_values_tvAR_p(p, alpha_forecasts, sigma_forecasts, time_series):
+    # returns (n_forecasts,)
+    n_forecasts = alpha_forecasts.shape[0]
+    forecasts = np.empty((n_forecasts,))
+    p_last_values = time_series[-p:]
+    for i in range(n_forecasts):
+        x_star = np.dot(p_last_values, alpha_forecasts[i, :]) 
+        # np.sum(p_last_values * alpha_forecasts[i, :].squeeze(), axis=0) 
+        p_last_values = np.concatenate([p_last_values[1:], [x_star]]) 
+        forecasts[i] = x_star
+    return forecasts
