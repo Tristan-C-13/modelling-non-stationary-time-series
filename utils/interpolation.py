@@ -57,15 +57,19 @@ def plot_interpolation(y, y_interpolation, ax, num_points=10, interpol_step=0.1,
 def plot_rolling_extrapolations(time_series, p, ax, num_points=10, interpol_step=1, n_forecasts=1, k=3):
     windows = np.lib.stride_tricks.sliding_window_view(time_series, num_points)
     extrapolations = np.empty(windows.shape[0])
+    ax.plot(time_series)
 
-    for y in windows:
-        y_extrapolated = interpolate_and_extrapolate(y, num_points, interpol_step, n_forecasts, k)
-        y_extrapolated = y_extrapolated[::int(1 / interpol_step)][-n_forecasts:] # only keep the extrapolation for round values of time 
+    for i, y in enumerate(windows):
+        y_extrapolated = interpolate_and_extrapolate(y, num_points, interpol_step, n_forecasts, k, True)
+        ax.scatter(i + num_points, y_extrapolated, color='red', label='extrapolated point')
 
-        return y_extrapolated
+
+
 
 if __name__ == '__main__':
     fig, ax = plt.subplots()
 
     time_series = np.arange(101)
-    print(plot_rolling_extrapolations(time_series, 1, ax, interpol_step=0.1, n_forecasts=1))
+    plot_rolling_extrapolations(time_series, 1, ax, interpol_step=0.1, n_forecasts=1)
+
+    plt.show()

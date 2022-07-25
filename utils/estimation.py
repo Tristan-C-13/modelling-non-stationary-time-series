@@ -74,7 +74,7 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
     return estimates
 
 
-def estimate_future_values_tvAR_p(p, alpha_forecasts, sigma_forecasts, time_series):
+def estimate_future_values_tvAR_p(p, alpha_forecasts, time_series):
     # returns (n_forecasts,)
     n_forecasts = alpha_forecasts.shape[0]
     forecasts = np.empty((n_forecasts,))

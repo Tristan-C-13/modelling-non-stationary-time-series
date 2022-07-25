@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 import yfinance as yf
+import datetime as dt
 from statsmodels.tsa.stattools import pacf
 from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
@@ -19,7 +20,7 @@ def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFram
     Returns a pd.DataFrame containing the log returns of two securities as well as their spread.
 
     --- parameters
-    - symbol1, symbol2: symbol of the financial security.
+    - symbol1, symbol2: symbol of the financial securities.
     - **kwargs: parameters used in yf.download.
     """
     data_df = yf.download(f"{symbol1} {symbol2}", **kwargs) 
@@ -30,8 +31,23 @@ def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFram
     data_df['spread'] = data_df['BTC-USD'] - data_df['ETH-USD']
     return data_df
 
+def get_dates_str(num_hours, end=None):
+    """
+    Returns two string dates separated by num_hours hours. Note, there will be **approximately** num_hours between the two dates.
 
-if __name__ == '__main__':
+    --- parameters
+    - num_hours: number of hours between the two dates.
+    - end: end date. If end is None, then it is today's date.
+    """
+    if end is None:
+        end = dt.date.today()
+    else:
+        end = dt.datetime.strptime(end, "%Y-%m-%d").date()
+    start = end - dt.timedelta(hours=num_hours)
+    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+
+
+if __name__ != '__main__':
     # DATA & SPREAD: BTC-USD / ETH-USD
     data = download_and_prepare_data("BTC-USD", "ETH-USD", period="1y", interval="1h")
 
@@ -77,10 +93,50 @@ if __name__ == '__main__':
     # PLOT forecast of the time series
     fig, ax = plt.subplots()
     alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=3) # shape (n_forecasts, alpha_hat.shape[1])
-    preds = estimate_future_values_tvAR_p(p, alpha_extrapolated, sigma_extrapolated, time_series)
+    preds = estimate_future_values_tvAR_p(p, alpha_extrapolated, time_series)
     ax.plot(np.arange(19, 20+len(preds)), np.concatenate([[time_series[-1]], preds]), color='red', label='prediction')
     ax.plot(np.arange(20), time_series[-20:], label='time series')
     ax.set_title("last 20 points of the time series + forecast")
     ax.legend()
     
+    plt.show()
+
+
+
+
+if __name__ == '__main__':
+    n_forecasts = 50
+    # download data to have around 10 000 points on each window
+    start, end = get_dates_str(10000 + n_forecasts) 
+    data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
+    
+    # parameters
+    time_series = data_df['spread'].to_numpy()
+    u_list = np.linspace(0, 1, 100, endpoint=False)
+    T = time_series.shape[0] - n_forecasts
+    b_T = T ** (-1/5)
+    p = 1
+
+    # define windows of time series. 1 time series has length T and is associated with 1 forecast
+    windows = np.lib.stride_tricks.sliding_window_view(time_series, T)[:-1]
+    ts_forecasts = np.empty(windows.shape[0])
+    ts_forecasts_var = np.empty(windows.shape[0])
+
+    for i, time_series_i in enumerate(windows):
+        theta_hat = estimate_parameters_tvAR_p(time_series=time_series_i, p=p, u_list=u_list, kernel=Kernel("epanechnikov"), bandwidth=b_T)
+        alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
+        sigma_hat = theta_hat[:, -1, :].squeeze()
+
+        alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=3)
+        ts_forecasts[i] = estimate_future_values_tvAR_p(p, alpha_extrapolated, time_series_i)
+        ts_forecasts_var[i] = sigma_extrapolated
+
+    # plot true time series + forecasts
+    n_last_points = 100 # only show the last n_last_points of the time series
+    x = np.arange(n_last_points)
+    fig, ax = plt.subplots()
+    ax.plot(x, time_series[-n_last_points:], label="time series")
+    ax.plot(x[-n_forecasts:], ts_forecasts, color='red', label='forecast')
+    ax.fill_between(x[-n_forecasts:], -np.abs(ts_forecasts_var), np.abs(ts_forecasts_var), alpha=0.5, color="grey", label=r"$\pm \sigma^2$")
+    ax.legend()
     plt.show()
