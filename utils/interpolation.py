@@ -52,24 +52,3 @@ def plot_interpolation(y, y_interpolation, ax, num_points=10, interpol_step=0.1,
     x_interpolation = np.arange(x[int(len(y) - (n_forecasts + num_points)) + 1], x[-1] + n_forecasts + interpol_step, step=interpol_step)
     ax.plot(x_interpolation, y_interpolation, color='red', linestyle='--', label='spline interpolation')
     ax.legend()
-
-
-def plot_rolling_extrapolations(time_series, p, ax, num_points=10, interpol_step=1, n_forecasts=1, k=3):
-    windows = np.lib.stride_tricks.sliding_window_view(time_series, num_points)
-    extrapolations = np.empty(windows.shape[0])
-    ax.plot(time_series)
-
-    for i, y in enumerate(windows):
-        y_extrapolated = interpolate_and_extrapolate(y, num_points, interpol_step, n_forecasts, k, True)
-        ax.scatter(i + num_points, y_extrapolated, color='red', label='extrapolated point')
-
-
-
-
-if __name__ == '__main__':
-    fig, ax = plt.subplots()
-
-    time_series = np.arange(101)
-    plot_rolling_extrapolations(time_series, 1, ax, interpol_step=0.1, n_forecasts=1)
-
-    plt.show()
