@@ -86,9 +86,9 @@ def check_entry_trade(time_series, p=1, kernel_str="epanechnikov", k=3):
     moving_mean = time_series[-24:].mean()
     z = (x_star - moving_mean) / moving_std
 
-    if z > 1:
+    if z > 0.5:
         return 'SHORT'  # sell A, buy B
-    elif z < -1:
+    elif z < -0.5:
         return 'LONG'   # buy A, sell B
     else:
         return None
@@ -143,16 +143,11 @@ def plot_rolling_forecasts(time_series, n_forecasts=50, n_last_points=80, p=1, k
     ax.plot(ts_alpha_extrapolated)
     ax.set_title("Extrapolation of alpha_1")
 
-
 def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3):
-    # Define parameters
-    u_list = np.linspace(0, 1, 100, endpoint=False)
-    T = time_series.shape[0] - n_forecasts
-    b_T = T ** (-1/5)
-
     # Define windows of time series. 1 time series has length T and is associated with 1 forecast
+    T = time_series.shape[0] - n_forecasts
     windows = np.lib.stride_tricks.sliding_window_view(time_series, T)[:-1]
-    actions = [None for _ in range(windows.shape[0])]
+    actions = np.empty(windows.shape[0], dtype=object)
     for i, time_series_i in enumerate(windows):
         actions[i] = check_entry_trade(time_series_i, p, k=k)
     
@@ -160,8 +155,14 @@ def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3
     fig, ax = plt.subplots()
     x = np.arange(n_last_points)
     ax.plot(x, time_series[-n_last_points:])
-    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')], time_series[-n_forecasts + np.argwhere(actions == 'LONG')], marker='^')
-
+    ax.vlines(x[-n_forecasts], time_series[-n_last_points:].min(),
+              time_series[-n_last_points:].max(), color='red', linestyle='--', label='forecasts begin here')
+    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')],
+               time_series[-n_forecasts + np.argwhere(actions == 'LONG')], marker='^', color='green', label='Open LONG')
+    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'SHORT')],
+               time_series[-n_forecasts + np.argwhere(actions == 'SHORT')], marker='^', color='black', label='Open SHORT')
+    ax.set_title("Trade Signals")
+    ax.legend()
 
 ##################
 # OTHER
@@ -229,7 +230,7 @@ if __name__ == '__main__':
     # make_general_plots(data_df)
     # plot_rolling_forecasts(spread_time_series, p=3, k=4)
     # check_entry_trade(spread_time_series, p=1, k=3)
-    plot_rolling_entries(spread_time_series)
+    plot_rolling_entries(spread_time_series, k=5)
 
     plt.show()
 
