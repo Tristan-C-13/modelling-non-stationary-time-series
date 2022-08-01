@@ -4,7 +4,7 @@ import numpy as np
 class Kernel:
 
     def __init__(self, kernel_str) -> None:
-        assert kernel_str in ["gaussian", "uniform", "epanechnikov"]
+        assert kernel_str in ["gaussian", "uniform", "epanechnikov", "quadratic", "triangular"]
         self.kernel_str = kernel_str
 
     def __call__(self, x):
@@ -14,4 +14,8 @@ class Kernel:
             return 1 / 2 * (np.abs(x) <= 1) 
         elif self.kernel_str == "epanechnikov":
             return (1 - x ** 2) * 3 / 4 * (np.abs(x) <= 1)
+        elif self.kernel_str == "quadratic":
+            return 15 / 16 * (1 - x ** 2) ** 2 * (np.abs(x) <= 1)
+        elif self.kernel_str == "triangular":
+            return (1 - np.abs(x)) * (np.abs(x) <= 1)
     

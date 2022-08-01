@@ -29,6 +29,7 @@ def interpolate_and_extrapolate(y, num_points=10, interpol_step=0.1, n_forecasts
 def extrapolate_parameters(alpha, sigma, num_points=10, interpol_step=1, n_forecasts=1, k=3):
     """
     Returns the extrapolated values of alpha and sigma.
+    Shape of alpha: (n_forecasts, p). Shape of sigma: (n_forecasts)
 
     --- parameters
     - alpha: time series of the alpha coefficient.

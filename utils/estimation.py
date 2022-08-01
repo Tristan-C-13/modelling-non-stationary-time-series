@@ -58,7 +58,6 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
     T = time_series.shape[0]
     time_series = time_series.reshape(T, -1) # make sure time series shape is (T, n_realizations)
     estimates = np.empty(shape=(u_list.shape[0], p + 1, time_series.shape[1])) # (alpha_1, ..., alpha_p, sigma) for each time series at each point u
-    
 
     for i, u_0 in enumerate(u_list):
         # define the window
@@ -74,14 +73,20 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
     return estimates
 
 
-def estimate_future_values_tvAR_p(p, alpha_forecasts, time_series):
+def forecast_future_values_tvAR_p(alpha_forecasts, time_series):
     # returns (n_forecasts,)
-    n_forecasts = alpha_forecasts.shape[0]
+    n_forecasts, p = alpha_forecasts.shape
     forecasts = np.empty((n_forecasts,))
     p_last_values = time_series[-p:]
     for i in range(n_forecasts):
-        x_star = np.dot(p_last_values, alpha_forecasts[i, :]) 
-        # np.sum(p_last_values * alpha_forecasts[i, :].squeeze(), axis=0) 
-        p_last_values = np.concatenate([p_last_values[1:], [x_star]]) 
+        x_star = -np.sum(p_last_values * np.flip(alpha_forecasts[i, :]), axis=0) # alpha needs to be flipped to have (X_{t-p} * alpha_p, ...) and not (X_{t-p} * alpha_1, ...)
         forecasts[i] = x_star
+        p_last_values = np.concatenate([p_last_values[1:], [x_star]]) 
     return forecasts
+
+
+def multistep_forecast_tvAR_1(alpha, time_series, n_forecasts):
+    """
+    In expectation: X_t = -alpha X_{t-1} ==> X_{t+k} = (-alpha)^k * X_t
+    """
+    return [time_series[-k] * (-alpha) ** k for k in range(1, n_forecasts + 1)]
