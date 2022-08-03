@@ -12,7 +12,8 @@ from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
 from utils.kernels import Kernel
 from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p
-from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters
+from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters, select_interpolation_order
+from utils.trading import Portfolio
 
 sns.set_style("whitegrid")
 logging.basicConfig(level=logging.INFO)
@@ -47,7 +48,10 @@ def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFram
     data_df = yf.download(f"{symbol1} {symbol2}", **kwargs) 
     data_df = data_df['Close']
     data_df = data_df.dropna()
+    prices_df = data_df.copy()
+    prices_df.columns = ['btc_close', 'eth_close']
     data_df = np.log(1 + data_df.pct_change()) # log returns
+    data_df = pd.concat([data_df, prices_df], axis=1)
     data_df = data_df.dropna()
     data_df['spread'] = data_df['BTC-USD'] - data_df['ETH-USD']
 
@@ -86,12 +90,12 @@ def check_entry_trade(time_series, p=1, kernel_str="epanechnikov", k=3):
     moving_mean = time_series[-24:].mean()
     z = (x_star - moving_mean) / moving_std
 
-    if z > 0.5:
-        return 'SHORT'  # sell A, buy B
-    elif z < -0.5:
-        return 'LONG'   # buy A, sell B
+    if z > 1:
+        return ('SHORT', x_star, z)  # sell A, buy B
+    elif z < -1:
+        return ('LONG', x_star, z)   # buy A, sell B
     else:
-        return None
+        return (None, x_star, z)
 
 
 ##################
@@ -133,9 +137,9 @@ def plot_rolling_forecasts(time_series, n_forecasts=50, n_last_points=80, p=1, k
     fig, ax = plt.subplots()
     ax.plot(x, time_series[-n_last_points:], label="time series")
     ax.plot(x[-n_forecasts:], ts_forecasts, color='red', label='forecast')
-    ax.plot(x[-n_forecasts:], ts_moving_std / 2,
+    ax.plot(x[-n_forecasts:], ts_moving_std,
             color='black', label='moving std')
-    ax.plot(x[-n_forecasts:], -ts_moving_std / 2, color='black')
+    ax.plot(x[-n_forecasts:], -ts_moving_std, color='black')
     # ax.fill_between(x[-n_forecasts:], -np.abs(ts_forecasts_var), np.abs(ts_forecasts_var), alpha=0.5, color="grey", label=r"$\pm \sigma^2$")
     ax.legend()
 
@@ -148,21 +152,27 @@ def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3
     T = time_series.shape[0] - n_forecasts
     windows = np.lib.stride_tricks.sliding_window_view(time_series, T)[:-1]
     actions = np.empty(windows.shape[0], dtype=object)
+    z_list = np.empty(windows.shape[0], dtype=object)
+    forecasts = np.empty(windows.shape[0])
     for i, time_series_i in enumerate(windows):
-        actions[i] = check_entry_trade(time_series_i, p, k=k)
+        actions[i], forecasts[i], z_list[i] = check_entry_trade(time_series_i, p, k=k)
     
     # Plot figure
     fig, ax = plt.subplots()
     x = np.arange(n_last_points)
     ax.plot(x, time_series[-n_last_points:])
+    ax.plot(x[-n_forecasts:], forecasts, color='red', label='forecasts')
     ax.vlines(x[-n_forecasts], time_series[-n_last_points:].min(),
               time_series[-n_last_points:].max(), color='red', linestyle='--', label='forecasts begin here')
-    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')],
-               time_series[-n_forecasts + np.argwhere(actions == 'LONG')], marker='^', color='green', label='Open LONG')
-    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'SHORT')],
-               time_series[-n_forecasts + np.argwhere(actions == 'SHORT')], marker='^', color='black', label='Open SHORT')
-    ax.set_title("Trade Signals")
+    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')] - 1,
+               time_series[-n_forecasts + np.argwhere(actions == 'LONG') - 1], marker='^', color='green', label='Open LONG')
+    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'SHORT') - 1],
+               time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
+    ax.set_title(f"Trade Signals ({k=}, {p=})")
     ax.legend()
+
+    fig, ax = plt.subplots()
+    ax.plot(x[-n_forecasts:], z_list, color='green', label='z')
 
 ##################
 # OTHER
@@ -218,19 +228,72 @@ def make_general_plots(data):
 
 
 
+
+def launch_trading_simulation(n_days=200, p=1, k=3):
+    """
+    --- parameters
+    - n_days: Number of days of simulated trading
+    - p: Order of the tvAR(p) model
+    - k: Order of the spline interpolation
+    """
+    # Data & Spread: BTC-USD / ETH-USD
+    start, end = get_dates_str(10000 + n_days) 
+    data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
+    spread_time_series = data_df['spread'].to_numpy()
+
+    # Initialize the portfolio: 0 BTC and 0 ETH
+    portfolio = Portfolio(dt.datetime.fromtimestamp(data_df.index[0].timestamp()).strftime("%Y-%m-%d %H:%M:%S"))
+
+    T = spread_time_series.shape[0] - n_days
+    for i in range(n_days):
+        date = dt.datetime.fromtimestamp(data_df.index[i].timestamp()).strftime("%Y-%m-%d %H:%M:%S")
+        time_series_i = spread_time_series[i : T+i]
+        btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
+        eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
+
+        # Close previous positions
+        portfolio.close_positions(btc_close, eth_close, date)
+
+        # Forecast and get trade signal
+        action, _, _ = check_entry_trade(time_series_i, p, k=k)
+
+        # Pass an order if there is a trade signal
+        if action is not None:
+            side_btc = 'BUY' if action == 'LONG' else 'SELL'
+            side_eth = 'BUY' if action == 'SHORT' else 'SELL'
+            portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
+            portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
+            portfolio.pnl_dict[date] = portfolio.pnl
+
+    pnl_dict = portfolio.get_pnl_dict()
+    print(portfolio.pnl)
+    # print(pd.Series(pnl_dict))
+
+
+
 if __name__ == '__main__':
+    # Parameters
+    p = 1
+    k = 3
+
     # DATA & SPREAD: BTC-USD / ETH-USD
     start, end = get_dates_str(10000 + 50) 
     print(f"start: {start}", f"end: {end}", sep='\n')
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
-    # data_df.to_csv("data/01_08_2022.csv", index=False)
-    data_df = pd.read_csv("data/27_07_2022.csv")
+    # data_df.to_csv("data/spread.csv", index=False)
+    data_df = pd.read_csv("data/spread.csv")
     spread_time_series = data_df['spread'].to_numpy()
 
+    # PLOTS & ANALYSES  
     # make_general_plots(data_df)
-    # plot_rolling_forecasts(spread_time_series, p=3, k=4)
-    # check_entry_trade(spread_time_series, p=1, k=3)
-    plot_rolling_entries(spread_time_series, k=5)
+    # plot_rolling_forecasts(spread_time_series, p=1, k=3, n_forecasts=200, n_last_points=220)
+    plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
+    
+    
+    # TRADING SIMULATION
+    # launch_trading_simulation(p=p, k=k)
 
     plt.show()
+
+
 

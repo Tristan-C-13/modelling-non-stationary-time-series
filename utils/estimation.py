@@ -74,7 +74,14 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
 
 
 def forecast_future_values_tvAR_p(alpha_forecasts, time_series):
-    # returns (n_forecasts,)
+    """
+    Returns the (multi-step) forecasts of a tvAR(p) process given alpha. Return is of shape (n_forecasts,)
+    If the number of required forecasts is greater than 1, the previous forecast will be used to make the next one.
+
+    --- parameters
+    - alpha_forecasts: alpha coefficients of the tvAR(p) model. (alpha_1, ..., alpha_p) shape (n_forecasts, p).
+    - time_series: time series to be forecasted. Only the last p values are used.
+    """
     n_forecasts, p = alpha_forecasts.shape
     forecasts = np.empty((n_forecasts,))
     p_last_values = time_series[-p:]

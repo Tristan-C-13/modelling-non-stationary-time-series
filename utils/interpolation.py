@@ -1,6 +1,6 @@
 import numpy as np
 from scipy import interpolate
-import matplotlib.pyplot as plt
+from sklearn.metrics import r2_score
 
 
 def interpolate_and_extrapolate(y, num_points=10, interpol_step=0.1, n_forecasts=1, k=3, only_extrapolated_pts=False):
@@ -17,7 +17,7 @@ def interpolate_and_extrapolate(y, num_points=10, interpol_step=0.1, n_forecasts
     """
     x = np.arange(num_points)
     y = y[-num_points:]
-    spl = interpolate.splrep(x, y, k=k)
+    spl = interpolate.splrep(x, y, k=k, s=0)
     x_new = np.arange(num_points + n_forecasts - 1 + interpol_step, step=interpol_step)
     interpolation = interpolate.splev(x_new, spl)
     if only_extrapolated_pts:
@@ -53,3 +53,21 @@ def plot_interpolation(y, y_interpolation, ax, num_points=10, interpol_step=0.1,
     x_interpolation = np.arange(x[int(len(y) - (n_forecasts + num_points)) + 1], x[-1] + n_forecasts + interpol_step, step=interpol_step)
     ax.plot(x_interpolation, y_interpolation, color='red', linestyle='--', label='spline interpolation')
     ax.legend()
+
+
+def select_interpolation_order(y):
+    r2_dict = dict()
+    test_mask = np.random.choice([False, True], size=(y.shape[0],), p=[0.9, 0.1])
+    x = np.arange(y.shape[0])
+    x_train = x[~test_mask]
+    x_test = x[test_mask]
+    y_train = y[~test_mask]
+    y_test = y[test_mask]
+
+    for k in range(1, 6):
+        spl = interpolate.splrep(x_train, y_train, k=k)
+        interpolation = interpolate.splev(x, spl)
+        r2_dict[k] = r2_score(y_test, interpolation[x_test])
+    
+    return r2_dict
+
