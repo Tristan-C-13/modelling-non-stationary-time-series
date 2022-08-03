@@ -229,7 +229,7 @@ def make_general_plots(data):
 
 
 
-def launch_trading_simulation(n_days=200, p=1, k=3):
+def launch_trading_simulation(n_days=2000, p=1, k=3):
     """
     --- parameters
     - n_days: Number of days of simulated trading
@@ -238,11 +238,14 @@ def launch_trading_simulation(n_days=200, p=1, k=3):
     """
     # Data & Spread: BTC-USD / ETH-USD
     start, end = get_dates_str(10000 + n_days) 
-    data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
+    data_df = pd.read_csv("data/spread.csv")
+
+    # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     spread_time_series = data_df['spread'].to_numpy()
 
     # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(dt.datetime.fromtimestamp(data_df.index[0].timestamp()).strftime("%Y-%m-%d %H:%M:%S"))
+    # portfolio = Portfolio(dt.datetime.fromtimestamp(data_df.index[0].timestamp()).strftime("%Y-%m-%d %H:%M:%S"))
+    portfolio = Portfolio(data_df.index[0])
 
     T = spread_time_series.shape[0] - n_days
     for i in range(n_days):
@@ -286,12 +289,12 @@ if __name__ == '__main__':
 
     # PLOTS & ANALYSES  
     # make_general_plots(data_df)
-    # plot_rolling_forecasts(spread_time_series, p=1, k=3, n_forecasts=200, n_last_points=220)
-    plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
+    # plot_rolling_forecasts(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
+    # plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
     
     
     # TRADING SIMULATION
-    # launch_trading_simulation(p=p, k=k)
+    launch_trading_simulation(p=p, k=k)
 
     plt.show()
 

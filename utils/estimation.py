@@ -4,14 +4,14 @@ import scipy.linalg
 from .kernels import Kernel
 
 
-def estimate_autocovariance(X, t_0, k, kernel, bandwidth):
+def estimate_local_autocovariance(X, t_0, k, kernel, bandwidth):
     """
     Returns an estimate of the autocovariance of X at t_0 and lag k.
     Can be multidimensional if X represents several realizations.
 
     --- parameters
     - X: array representing one (or several) realizations of the process
-    - t_0: point where estimate the covariance
+    - t_0: point where to estimate the covariance
     - k: lag
     - kernel: localizing kernel used in the estimation
     - bandwidth: bandwidth of the kernel
@@ -22,6 +22,24 @@ def estimate_autocovariance(X, t_0, k, kernel, bandwidth):
             kernel((t_0 - (np.arange(T-k) + k / 2)) / (bandwidth * T)).repeat(X.shape[1]).reshape(X[k:, :].shape) 
             * X[:T-k, :] 
             * X[k:, :]
+        ), axis=0) / (bandwidth * T)
+
+def estimate_local_mean(X, t_0, kernel, bandwidth):
+    """
+    Returns an estimate of the mean of X at t_0 and lag k.
+    Can be multidimensional if X represents several realizations.
+
+    --- parameters
+    - X: array representing one (or several) realizations of the process
+    - t_0: point where to estimate the mean
+    - kernel: localizing kernel used in the estimation
+    - bandwidth: bandwidth of the kernel
+    """
+    T = X.shape[0]
+    return np.sum(
+        (
+            kernel((t_0 - np.arange(T)) / (bandwidth * T)).repeat(X.shape[1])
+            * X 
         ), axis=0) / (bandwidth * T)
 
 
@@ -67,7 +85,7 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
         time_series_window = time_series[start:(end+1), :]
 
         # estimate the covariance and Yule-Walker estimates
-        c_list = np.array([estimate_autocovariance(time_series_window, t_0 - start, k, kernel, bandwidth) for k in range(p+1)]).reshape((p+1, -1))
+        c_list = np.array([estimate_local_autocovariance(time_series_window, t_0 - start, k, kernel, bandwidth) for k in range(p+1)]).reshape((p+1, -1))
         estimates[i, :, :] = estimate_yw_coef(c_list)
 
     return estimates
