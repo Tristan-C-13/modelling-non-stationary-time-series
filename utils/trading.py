@@ -1,6 +1,3 @@
-from regex import D
-
-
 class Portfolio:
     def __init__(self, start_date) -> None:
         self.pnl = 0

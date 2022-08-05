@@ -22,7 +22,7 @@ logging.basicConfig(level=logging.INFO)
 ##################
 # DATA PREPARATION
 ##################
-def get_dates_str(num_hours, end=None):
+def get_dates_str(num_hours:int, end:str = None) -> tuple[str, str]:
     """
     Returns two string dates separated by num_hours hours. Note, there will be **approximately** num_hours between the two dates.
 
@@ -290,7 +290,7 @@ if __name__ == '__main__':
     k = 3
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + 50) 
+    start, end = get_dates_str(10000 + 200) 
     print(f"start: {start}", f"end: {end}", sep='\n')
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     # data_df.to_csv("data/data.csv", index=False)
