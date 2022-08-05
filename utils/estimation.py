@@ -38,7 +38,7 @@ def estimate_local_mean(X, t_0, kernel, bandwidth):
     T = X.shape[0]
     return np.sum(
         (
-            kernel((t_0 - np.arange(T)) / (bandwidth * T)).repeat(X.shape[1])
+            kernel((t_0 - np.arange(T)) / (bandwidth * T)).repeat(X.shape[1]).reshape(X.shape)
             * X 
         ), axis=0) / (bandwidth * T)
 
@@ -85,7 +85,8 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
         time_series_window = time_series[start:(end+1), :]
 
         # estimate the covariance and Yule-Walker estimates
-        c_list = np.array([estimate_local_autocovariance(time_series_window, t_0 - start, k, kernel, bandwidth) for k in range(p+1)]).reshape((p+1, -1))
+        c_list = np.array([estimate_local_autocovariance(
+            time_series_window, t_0 - start, k, kernel, bandwidth) for k in range(p+1)]).reshape((p+1, -1))
         estimates[i, :, :] = estimate_yw_coef(c_list)
 
     return estimates

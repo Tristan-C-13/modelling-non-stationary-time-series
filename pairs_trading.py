@@ -11,7 +11,7 @@ from statsmodels.tsa.stattools import pacf
 from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
 from utils.kernels import Kernel
-from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p
+from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
 from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters, select_interpolation_order
 from utils.trading import Portfolio
 
@@ -28,7 +28,7 @@ def get_dates_str(num_hours, end=None):
 
     --- parameters
     - num_hours: number of hours between the two dates.
-    - end: end date. If end is None, then it is today's date.
+    - end: end date in format YYYY-MM-DD. If end is None, then it is today's date.
     """
     if end is None:
         end = dt.date.today()
@@ -45,15 +45,20 @@ def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFram
     - symbol1, symbol2: symbol of the financial securities.
     - **kwargs: parameters used in yf.download.
     """
-    data_df = yf.download(f"{symbol1} {symbol2}", **kwargs) 
-    data_df = data_df['Close']
+    # Download historical data
+    data_df = yf.download(f"{symbol1} {symbol2}", **kwargs)['Close'] 
     data_df = data_df.dropna()
+    # Keep raw prices in memory
     prices_df = data_df.copy()
-    prices_df.columns = ['btc_close', 'eth_close']
-    data_df = np.log(1 + data_df.pct_change()) # log returns
-    data_df = pd.concat([data_df, prices_df], axis=1)
+    prices_df = prices_df.rename(columns={'BTC-USD': 'btc_close', 'ETH-USD': 'eth_close'})
+    # Compute log returns
+    data_df = np.log(1 + data_df.pct_change())
+    data_df = data_df.rename(columns={'BTC-USD': 'btc_log_returns', 'ETH-USD': 'eth_log_returns'})
+    # Concatenate raw prices and log returns an compute the spreads
+    data_df = pd.concat([prices_df, data_df], axis=1)
     data_df = data_df.dropna()
-    data_df['spread'] = data_df['BTC-USD'] - data_df['ETH-USD']
+    data_df['spread_log_returns'] = data_df['btc_log_returns'] - data_df['eth_log_returns']
+    data_df['spread_log'] = np.log(data_df['btc_close'] / data_df['eth_close'])
 
     # logging info
     start_datetime = data_df.index[0]
@@ -89,6 +94,12 @@ def check_entry_trade(time_series, p=1, kernel_str="epanechnikov", k=3):
     moving_std = time_series[-24:].std()
     moving_mean = time_series[-24:].mean()
     z = (x_star - moving_mean) / moving_std
+
+    # Localized version of the sample mean / std on the last 36 hours. The local point is chosen in the middle of the interval
+    localized_mean = estimate_local_mean(time_series[-36:].reshape(-1, 1), 18, Kernel(kernel_str), b_T)   
+    # estimate_local_mean(time_series, int(0.95 * T), Kernel(kernel_str), b_T)
+    localized_std = np.sqrt(estimate_local_autocovariance(time_series[-36:].reshape(-1, 1), 18, 0, Kernel(kernel_str), b_T))
+    z_local = (x_star - localized_mean) / localized_std
 
     if z > 1:
         return ('SHORT', x_star, z)  # sell A, buy B
@@ -174,70 +185,15 @@ def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3
     fig, ax = plt.subplots()
     ax.plot(x[-n_forecasts:], z_list, color='green', label='z')
 
-##################
-# OTHER
-##################
-def make_general_plots(data):
-    # MODELLING
-    time_series = data['spread'].to_numpy()
-    u_list = np.linspace(0, 1, 100, endpoint=False)
-    T = time_series.shape[0]
-    b_T = T ** (-1/5)
-    p = 1
-    print(f"{T=}")
-    print(f"{b_T=}")
-
-    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel("epanechnikov"), bandwidth=b_T)
-    alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
-    sigma_hat = theta_hat[:, -1, :].squeeze()
-
-    # PLOT DATA TIME SERIES + COEFFICIENTS TIME SERIES
-    fig = plt.figure(constrained_layout=True)
-    subfigs = fig.subfigures(3, 1)
-    # time series
-    sns.lineplot(data=data, ax=subfigs[0].subplots(1, 1))
-    # alpha
-    axs = subfigs[1].subplots(1, p) if p > 1 else [subfigs[1].subplots(1, p)]
-    for i in range(p):
-        axs[i].plot(u_list, alpha_hat[:, i])
-        axs[i].set_title(f"alpha_{i+1}")
-    # sigma
-    ax = subfigs[2].subplots(1, 1)
-    ax.plot(u_list, sigma_hat)
-    ax.set_title("sigma")
-
-    # PLOT ACF / PACF
-    fig2, axs2 = plt.subplots(1, 2)
-    pacf_, conf_int = pacf(time_series, nlags=10, alpha=0.05)
-    plot_pacf(time_series, method='ywm', ax=axs2[0], lags=np.arange(10), alpha=0.05, markersize=3)
-    plot_acf(time_series, ax=axs2[1], lags=np.arange(10), alpha=0.05, markersize=3)
-
-    # PLOT Interpolation for one coefficient
-    fig, ax = plt.subplots()
-    alpha_interpolation = interpolate_and_extrapolate(alpha_hat[:, 0], k=3)
-    plot_interpolation(alpha_hat[:, 0], alpha_interpolation, ax)
-    
-    # PLOT forecast of the time series
-    fig, ax = plt.subplots()
-    alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=3) # shape (n_forecasts, alpha_hat.shape[1])
-    preds = forecast_future_values_tvAR_p(alpha_extrapolated, time_series)
-    ax.plot(np.arange(19, 20+len(preds)), np.concatenate([[time_series[-1]], preds]), color='red', label='prediction')
-    ax.plot(np.arange(20), time_series[-20:], label='time series')
-    ax.set_title("last 20 points of the time series + forecast")
-    ax.legend()
-
-
-
-
-def launch_trading_simulation(n_days=2000, p=1, k=3):
+def launch_trading_simulation(n_hours=2000, p=1, k=3):
     """
     --- parameters
-    - n_days: Number of days of simulated trading
+    - n_hours: Number of hours of simulated trading
     - p: Order of the tvAR(p) model
     - k: Order of the spline interpolation
     """
     # Data & Spread: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + n_days) 
+    start, end = get_dates_str(10000 + n_hours) 
     data_df = pd.read_csv("data/spread.csv")
 
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
@@ -247,8 +203,8 @@ def launch_trading_simulation(n_days=2000, p=1, k=3):
     # portfolio = Portfolio(dt.datetime.fromtimestamp(data_df.index[0].timestamp()).strftime("%Y-%m-%d %H:%M:%S"))
     portfolio = Portfolio(data_df.index[0])
 
-    T = spread_time_series.shape[0] - n_days
-    for i in range(n_days):
+    T = spread_time_series.shape[0] - n_hours
+    for i in range(n_hours):
         date = dt.datetime.fromtimestamp(data_df.index[i].timestamp()).strftime("%Y-%m-%d %H:%M:%S")
         time_series_i = spread_time_series[i : T+i]
         btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
@@ -269,9 +225,63 @@ def launch_trading_simulation(n_days=2000, p=1, k=3):
             portfolio.pnl_dict[date] = portfolio.pnl
 
     pnl_dict = portfolio.get_pnl_dict()
-    print(portfolio.pnl)
-    # print(pd.Series(pnl_dict))
+    print(portfolio.pnl) # print(pd.Series(pnl_dict))
 
+
+##################
+# OTHER
+##################
+def make_general_plots(time_series, p=1, k=3):
+    # MODELLING
+    u_list = np.linspace(0, 1, 100, endpoint=False)
+    T = time_series.shape[0]
+    b_T = T ** (-1/5)
+    print(f"{T=}")
+    print(f"{b_T=}")
+
+    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel("epanechnikov"), bandwidth=b_T)
+    alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
+    sigma_hat = theta_hat[:, -1, :].squeeze()
+
+    # PLOT DATA TIME SERIES + COEFFICIENTS TIME SERIES
+    fig = plt.figure(constrained_layout=True)
+    subfigs = fig.subfigures(3, 1)
+    # spread time series
+    ax = subfigs[0].subplots(1, 1)
+    ax.plot(time_series)
+    ax.set_title("Spread")
+    # alpha
+    axs = subfigs[1].subplots(1, p) if p > 1 else [subfigs[1].subplots(1, p)]
+    for i in range(p):
+        axs[i].plot(u_list, alpha_hat[:, i])
+        axs[i].set_title(f"alpha_{i+1}")
+    # sigma
+    ax = subfigs[2].subplots(1, 1)
+    ax.plot(u_list, sigma_hat)
+    ax.set_title("sigma")
+
+    # PLOT ACF / PACF
+    fig2, axs2 = plt.subplots(1, 2)
+    pacf_, conf_int = pacf(time_series, nlags=10, alpha=0.05)
+    plot_pacf(time_series, method='ywm', ax=axs2[0], lags=np.arange(10), alpha=0.05, markersize=3)
+    plot_acf(time_series, ax=axs2[1], lags=np.arange(10), alpha=0.05, markersize=3)
+
+    # PLOT Interpolation for one coefficient
+    fig, ax = plt.subplots()
+    alpha_interpolation = interpolate_and_extrapolate(alpha_hat[:, 0], k=k)
+    plot_interpolation(alpha_hat[:, 0], alpha_interpolation, ax)
+    
+    # PLOT forecast of the time series
+    fig, ax = plt.subplots()
+    alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=3) # shape (n_forecasts, alpha_hat.shape[1])
+    preds = forecast_future_values_tvAR_p(alpha_extrapolated, time_series)
+    ax.plot(np.arange(19, 20+len(preds)), np.concatenate([[time_series[-1]], preds]), color='red', label='prediction')
+    ax.plot(np.arange(20), time_series[-20:], label='time series')
+    ax.set_title("last 20 points of the time series + forecast")
+    ax.legend()
+
+
+# ========================================================================================
 
 
 if __name__ == '__main__':
@@ -283,18 +293,17 @@ if __name__ == '__main__':
     start, end = get_dates_str(10000 + 50) 
     print(f"start: {start}", f"end: {end}", sep='\n')
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
-    # data_df.to_csv("data/spread.csv", index=False)
-    data_df = pd.read_csv("data/spread.csv")
-    spread_time_series = data_df['spread'].to_numpy()
+    # data_df.to_csv("data/data.csv", index=False)
+    data_df = pd.read_csv("data/data.csv")
+    spread_time_series = data_df['spread_log_returns'].to_numpy()
 
     # PLOTS & ANALYSES  
-    # make_general_plots(data_df)
+    make_general_plots(spread_time_series, p=p, k=k)
     # plot_rolling_forecasts(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
-    # plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
-    
+    plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
     
     # TRADING SIMULATION
-    launch_trading_simulation(p=p, k=k)
+    # launch_trading_simulation(p=p, k=k)
 
     plt.show()
 
