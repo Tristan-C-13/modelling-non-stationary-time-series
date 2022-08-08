@@ -82,7 +82,7 @@ def check_entry_trade(time_series, p=1, kernel_str="epanechnikov", k=3):
     """
     u_list = np.linspace(0, 1, 100, endpoint=False)
     T = time_series.shape[0]
-    b_T = T ** (-1/5)
+    b_T = 0.1 * T ** (-1/5)
 
     theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel(kernel_str), bandwidth=b_T)
     alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
@@ -96,10 +96,10 @@ def check_entry_trade(time_series, p=1, kernel_str="epanechnikov", k=3):
     z = (x_star - moving_mean) / moving_std
 
     # Localized version of the sample mean / std on the last 36 hours. The local point is chosen in the middle of the interval
-    localized_mean = estimate_local_mean(time_series[-36:].reshape(-1, 1), 18, Kernel(kernel_str), b_T)   
-    # estimate_local_mean(time_series, int(0.95 * T), Kernel(kernel_str), b_T)
-    localized_std = np.sqrt(estimate_local_autocovariance(time_series[-36:].reshape(-1, 1), 18, 0, Kernel(kernel_str), b_T))
-    z_local = (x_star - localized_mean) / localized_std
+    # localized_mean = estimate_local_mean(time_series[-36:].reshape(-1, 1), 18, Kernel(kernel_str), b_T)   
+    # # estimate_local_mean(time_series, int(0.95 * T), Kernel(kernel_str), b_T)
+    # localized_std = np.sqrt(estimate_local_autocovariance(time_series[-36:].reshape(-1, 1), 18, 0, Kernel(kernel_str), b_T))
+    # z_local = (x_star - localized_mean) / localized_std
 
     if z > 1:
         return ('SHORT', x_star, z)  # sell A, buy B
@@ -235,7 +235,7 @@ def make_general_plots(time_series, p=1, k=3):
     # MODELLING
     u_list = np.linspace(0, 1, 100, endpoint=False)
     T = time_series.shape[0]
-    b_T = T ** (-1/5)
+    b_T = 0.1 * T ** (-1/5)
     print(f"{T=}")
     print(f"{b_T=}")
 
@@ -295,12 +295,12 @@ if __name__ == '__main__':
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     # data_df.to_csv("data/data.csv", index=False)
     data_df = pd.read_csv("data/data.csv")
-    spread_time_series = data_df['spread_log_returns'].to_numpy()
+    spread_time_series = data_df['spread_log_retunrns'].to_numpy()
 
     # PLOTS & ANALYSES  
     make_general_plots(spread_time_series, p=p, k=k)
     # plot_rolling_forecasts(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
-    plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
+    # plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
     
     # TRADING SIMULATION
     # launch_trading_simulation(p=p, k=k)

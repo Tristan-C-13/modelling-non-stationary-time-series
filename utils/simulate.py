@@ -3,7 +3,7 @@ import numpy as np
 
 def simulate_tvAR_p(p, X_0, epsilon, alpha_fun_list, sigma_fun):
     """
-    Returns a (multidimensional) realization of a tvAR(p) process.
+    Returns a (multidimensional) realisation of a tvAR(p) process.
 
     --- parameters
     - p: order of the model
@@ -19,8 +19,8 @@ def simulate_tvAR_p(p, X_0, epsilon, alpha_fun_list, sigma_fun):
     
     epsilon = epsilon.reshape(epsilon.shape[0], -1)
     X_0 = X_0.reshape(p, -1)
-    T, n_realizations = epsilon.shape
-    assert X_0.shape == (p, n_realizations)
+    T, n_realisations = epsilon.shape
+    assert X_0.shape == (p, n_realisations)
 
     X = np.empty(shape=epsilon.shape)
     X[:p, :] = X_0

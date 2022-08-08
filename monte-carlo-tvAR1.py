@@ -6,11 +6,11 @@ from utils.estimation import estimate_parameters_tvAR_p
 from utils.simulate import simulate_tvAR_p
 
 
-def make_row_plot(alpha_fun, sigma_fun, alpha_hat, sigma_hat, u_list, subfig, n_realizations):
+def make_row_plot(alpha_fun, sigma_fun, alpha_hat, sigma_hat, u_list, subfig, n_realisations):
     axs = subfig.subplots(1, 4)
 
-    # different realizations
-    for i in range(n_realizations):
+    # different realisations
+    for i in range(n_realisations):
         axs[0].plot(u_list, alpha_hat[:, i], alpha=0.5)
         axs[1].plot(u_list, sigma_hat[:, i], alpha=0.5)
     
@@ -24,17 +24,17 @@ def make_row_plot(alpha_fun, sigma_fun, alpha_hat, sigma_hat, u_list, subfig, n_
         axs[i+1].plot(u_list, sigma_fun(u_list), color="black", label="True curve")
 
     # titles and legends
-    axs[0].set_title(f"{n_realizations} realizations of " + r"$\hat{\alpha}$", fontsize=10)
-    axs[1].set_title(f"{n_realizations} realizations of " + r"$\hat{\sigma}$", fontsize=10)
+    axs[0].set_title(f"{n_realisations} realisations of " + r"$\hat{\alpha}$", fontsize=10)
+    axs[1].set_title(f"{n_realisations} realisations of " + r"$\hat{\sigma}$", fontsize=10)
     axs[2].set_title(f"Mean over {alpha_hat.shape[1]} approximations of " + r"$\hat{\alpha}$", fontsize=10)
     axs[3].set_title(f"Mean over {sigma_hat.shape[1]} approximations of " + r"$\hat{\sigma}$", fontsize=10)
 
 
-def make_row_plot_alpha(alpha_fun, alpha_hat, u_list, subfig, n_realizations):
+def make_row_plot_alpha(alpha_fun, alpha_hat, u_list, subfig, n_realisations):
     axs = subfig.subplots(1, 2)
 
-    # different realizations
-    for i in range(n_realizations):
+    # different realisations
+    for i in range(n_realisations):
         axs[0].plot(u_list, alpha_hat[:, i], alpha=0.5)
     # averages
     axs[1].plot(u_list, alpha_hat.mean(axis=1), label=f"Approximation")
@@ -42,14 +42,14 @@ def make_row_plot_alpha(alpha_fun, alpha_hat, u_list, subfig, n_realizations):
     for ax in axs.flat:
         ax.plot(u_list, alpha_fun(u_list), color="black")
     # titles and legends
-    axs[0].set_title(f"{n_realizations} realizations of " + r"$\hat{\alpha}$", fontsize=10)
+    axs[0].set_title(f"{n_realisations} realisations of " + r"$\hat{\alpha}$", fontsize=10)
     axs[1].set_title(f"Mean over {alpha_hat.shape[1]} approximations of " + r"$\hat{\alpha}$", fontsize=10)
 
-def make_row_plot_sigma(sigma_fun, sigma_hat, u_list, subfig, n_realizations):
+def make_row_plot_sigma(sigma_fun, sigma_hat, u_list, subfig, n_realisations):
     axs = subfig.subplots(1, 2)
 
-    # different realizations
-    for i in range(n_realizations):
+    # different realisations
+    for i in range(n_realisations):
         axs[0].plot(u_list, sigma_hat[:, i], alpha=0.5)
     # averages
     axs[1].plot(u_list, sigma_hat.mean(axis=1), label=f"Approximation")
@@ -57,7 +57,7 @@ def make_row_plot_sigma(sigma_fun, sigma_hat, u_list, subfig, n_realizations):
     for ax in axs.flat:
         ax.plot(u_list, sigma_fun(u_list), color="black")
     # titles and legends
-    axs[0].set_title(f"{n_realizations} realizations of " + r"$\hat{\sigma}$", fontsize=10)
+    axs[0].set_title(f"{n_realisations} realisations of " + r"$\hat{\sigma}$", fontsize=10)
     axs[1].set_title(f"Mean over {sigma_hat.shape[1]} approximations of " + r"$\hat{\sigma}$", fontsize=10)
 
 
@@ -75,7 +75,7 @@ if __name__ == '__main__':
     # Parameters
     T_list = [100, 1000, 10000]
     u_list = np.linspace(0, 1, 100, endpoint=False)
-    n_realizations = 200
+    n_realisations = 500
 
 
     fig = plt.figure(constrained_layout=True)
@@ -89,13 +89,13 @@ if __name__ == '__main__':
     subfigs_sigma = fig_sigma.subfigures(nrows=len(T_list), ncols=1)
 
     for i, T in enumerate(T_list):
-        bandwidth = T ** (-1/5)
+        bandwidth = 0.1 * T ** (-1/5)
         print(f"{T=}")
         print(f"{bandwidth=}")
 
         # Estimate coefficients
-        epsilon = np.random.normal(0, 1, size=(T, n_realizations))
-        X = simulate_tvAR_p(1, np.zeros(n_realizations), epsilon, [alpha], sigma)
+        epsilon = np.random.normal(0, 1, size=(T, n_realisations))
+        X = simulate_tvAR_p(1, np.zeros(n_realisations), epsilon, [alpha], sigma)
         yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth)
         alpha_hat = yw_estimates[:, 0, :]
         sigma_hat = yw_estimates[:, 1, :]
