@@ -4,7 +4,7 @@ import scipy.linalg
 from .kernels import Kernel
 
 
-def estimate_local_autocovariance(X, t_0, k, kernel, bandwidth):
+def estimate_local_autocovariance(X: np.ndarray, t_0: int, k: int, kernel: Kernel, bandwidth: float) -> np.ndarray:
     """
     Returns an estimate of the autocovariance of X at t_0 and lag k.
     Can be multidimensional if X represents several realisations.
@@ -24,7 +24,7 @@ def estimate_local_autocovariance(X, t_0, k, kernel, bandwidth):
             * X[k:, :]
         ), axis=0) / (bandwidth * T)
 
-def estimate_local_mean(X, t_0, kernel, bandwidth):
+def estimate_local_mean(X: np.ndarray, t_0: int, kernel: Kernel, bandwidth: float) -> np.ndarray:
     """
     Returns an estimate of the mean of X at t_0 and lag k.
     Can be multidimensional if X represents several realisations.
@@ -62,7 +62,7 @@ def estimate_yw_coef(c_list: np.ndarray) -> np.ndarray:
     return yw_coeff
 
 
-def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarray, kernel: Kernel, bandwidth: float):
+def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarray, kernel: Kernel, bandwidth: float) -> np.ndarray:
     """
     Returns the Yule-Walker estimates of a tvAR(p) model. Supports multi-dimensional time series for Monte-Carlo simulations.
 
@@ -86,7 +86,7 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
     return estimates
 
 
-def forecast_future_values_tvAR_p(alpha_forecasts, time_series):
+def forecast_future_values_tvAR_p(alpha_forecasts: np.ndarray, time_series: np.ndarray) -> np.ndarray:
     """
     Returns the (multi-step) forecasts of a tvAR(p) process given alpha. Return is of shape (n_forecasts,)
     If the number of required forecasts is greater than 1, the previous forecast will be used to make the next one.
@@ -105,7 +105,7 @@ def forecast_future_values_tvAR_p(alpha_forecasts, time_series):
     return forecasts
 
 
-def multistep_forecast_tvAR_1(alpha, time_series, n_forecasts):
+def multistep_forecast_tvAR_1(alpha: float, time_series: np.ndarray, n_forecasts: int) -> list:
     """
     In expectation: X_t = -alpha X_{t-1} ==> X_{t+k} = (-alpha)^k * X_t
     """
