@@ -230,10 +230,9 @@ def launch_trading_simulation2(n_hours=2000, p=1, k=3):
         action = check_entry_trade(z_score, 1)
         # Pass an order if there is a trade signal
         if action is not None:
-            # Close previous positions if it is the opposite / new signal
-            if action is not None and action != portfolio.last_action:
+            # Close previous positions and enter new ones if it is the opposite / new signal
+            if action != portfolio.last_action:
                 portfolio.close_positions(btc_close, eth_close, date)
-                # Enter position
                 side_btc = 'BUY' if action == 'LONG' else 'SELL'
                 side_eth = 'BUY' if action == 'SHORT' else 'SELL'
                 portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
