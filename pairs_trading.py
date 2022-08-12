@@ -12,7 +12,7 @@ from utils.data_processing import get_dates_str, download_and_prepare_data
 from utils.kernels import Kernel
 from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p 
 from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters
-from utils.trading import Portfolio, get_actions_and_forecasts, check_entry_trade, hit_ratio
+from utils.trading import get_actions_and_forecasts, hit_ratio, launch_trading_simulation1, launch_trading_simulation2
 
 sns.set_style("whitegrid")
 
@@ -164,21 +164,26 @@ if __name__ == '__main__':
     # plot_rolling_forecasts(time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
     # plot_rolling_entries(time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
 
-    n_forecasts = 200
-    (actions, forecasts, z_list) = get_actions_and_forecasts(time_series=time_series, n_forecasts=n_forecasts, p=p, k=k)
-    print(hit_ratio(time_series, forecasts, actions))
-    x = np.arange(n_forecasts + 100)
-    fig, ax = plt.subplots()
-    ax.plot(x, spread_time_series[-(n_forecasts+100):])
-    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')] - 1,
-               spread_time_series[-n_forecasts + np.argwhere(actions == 'LONG') - 1], marker='^', color='green', label='Open LONG')
-    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'SHORT') - 1],
-               spread_time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
+    # n_forecasts = 2000
+    # (actions, forecasts, z_list) = get_actions_and_forecasts(time_series=time_series, n_forecasts=n_forecasts, p=p, k=k)
+    # print(hit_ratio(time_series, forecasts, actions))
+    # x = np.arange(n_forecasts + 100)
+    # fig, ax = plt.subplots()
+    # ax.plot(x, spread_time_series[-(n_forecasts+100):])
+    # ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')] - 1,
+    #            spread_time_series[-n_forecasts + np.argwhere(actions == 'LONG') - 1], marker='^', color='green', label='Open LONG')
+    # ax.scatter(x[-n_forecasts + np.argwhere(actions == 'SHORT') - 1],
+    #            spread_time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
     
     # TRADING SIMULATION
     # launch_trading_simulation1(2000, 1, 3)
-    pnl_series = pd.read_csv('data/pnl_series2.csv', index_col='datetime')
-    fig, ax = plt.subplots()
-    ax.plot(pnl_series.to_numpy())
+    launch_trading_simulation2(2000, 1, 3)
+    pnl_series_1 = pd.read_csv('data/pnl_series_strat1.csv', index_col='datetime')
+    pnl_series_2 = pd.read_csv('data/pnl_series_strat2.csv', index_col='datetime')
+    fig, axs = plt.subplots(2, 1)
+    axs[0].plot(pnl_series_1.to_numpy())
+    axs[0].set_title("Strategy 1")
+    axs[1].plot(pnl_series_2.to_numpy())
+    axs[1].set_title("Strategy 2")
 
     plt.show()

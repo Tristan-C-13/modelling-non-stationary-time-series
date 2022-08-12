@@ -8,11 +8,12 @@ from .interpolation import extrapolate_parameters
 
 class Portfolio:
     def __init__(self, start_date) -> None:
+        self.positions = {'BTC-USD': 0, 'ETH-USD': 0}  
         self.cash = 0     # initial cash
         self.crypto = 0   # no initial position
         self.pnl = self.cash + self.crypto
         self.pnl_dict = {start_date: self.pnl}
-        self.positions = {'BTC-USD': 0, 'ETH-USD': 0}
+        self.last_action = None
 
     def insert_order(self, instrument_id:str, side:str, price:float, volume:float) -> None:
         assert side in ['BUY', 'SELL']
@@ -180,9 +181,9 @@ def launch_trading_simulation1(n_hours=2000, p=1, k=3):
         # Update P&L and save it 
         portfolio.update_pnl()
         portfolio.pnl_dict[date] = portfolio.pnl
-
+    
         # Verbose
-        if i % 50 == 0:
+        if (i+1) % 50 == 0:
             print(f"step {i+1} / {n_hours}")
 
     # Close the final positions at the end of the trading period
@@ -191,4 +192,65 @@ def launch_trading_simulation1(n_hours=2000, p=1, k=3):
     # Save result
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
-    pnl_series.to_csv('../data/pnl_series2.csv', index_label='datetime')
+    pnl_series.to_csv('./data/pnl_series_strat1.csv', index_label='datetime')
+
+
+def launch_trading_simulation2(n_hours=2000, p=1, k=3):
+    """
+    Trading simulations on n_hours. 
+    Enter a position if abs(z_score) > 1 and unwind it when the opposite signal comes.
+
+    --- parameters
+    - n_hours: Number of hours of simulated trading
+    - p: Order of the tvAR(p) model
+    - k: Order of the spline interpolation
+    """
+    # Data & Spread: BTC-USD / ETH-USD
+    start, end = get_dates_str(10000 + n_hours) 
+    data_df = pd.read_csv("data/data.csv", index_col='datetime', parse_dates=True)
+
+    # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
+    spread_time_series = data_df['spread_log_returns'].to_numpy()
+
+    # Initialize the portfolio: 0 BTC and 0 ETH
+    portfolio = Portfolio(data_df.index[0])
+
+    T = spread_time_series.shape[0] - n_hours
+    for i in range(n_hours):
+        date = data_df.index[i]
+        time_series_i = spread_time_series[i : T+i]
+        btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
+        eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
+
+        # Update crypto value
+        portfolio.update_crypto(btc_close, eth_close)
+        
+        # Forecast and get trade signal
+        _, z_score = get_forecast_zscore(time_series_i, p, k)
+        action = check_entry_trade(z_score, 1)
+        # Pass an order if there is a trade signal
+        if action is not None:
+            # Close previous positions if it is the opposite / new signal
+            if action is not None and action != portfolio.last_action:
+                portfolio.close_positions(btc_close, eth_close, date)
+                # Enter position
+                side_btc = 'BUY' if action == 'LONG' else 'SELL'
+                side_eth = 'BUY' if action == 'SHORT' else 'SELL'
+                portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
+                portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
+                portfolio.last_action = action
+        # Update P&L and save it 
+        portfolio.update_pnl()
+        portfolio.pnl_dict[date] = portfolio.pnl
+
+        # Verbose
+        if (i+1) % 50 == 0:
+            print(f"step {i+1} / {n_hours}")
+
+    # Close the final positions at the end of the trading period
+    portfolio.close_positions(btc_close, eth_close, date)
+
+    # Save result
+    pnl_dict = portfolio.get_pnl_dict()
+    pnl_series = pd.Series(pnl_dict)
+    pnl_series.to_csv('./data/pnl_series_strat2.csv', index_label='datetime')
