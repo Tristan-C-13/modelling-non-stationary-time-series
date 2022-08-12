@@ -191,4 +191,4 @@ def launch_trading_simulation1(n_hours=2000, p=1, k=3):
     # Save result
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
-    pnl_series.to_csv('data/pnl_series2.csv', index_label='datetime')
+    pnl_series.to_csv('../data/pnl_series2.csv', index_label='datetime')

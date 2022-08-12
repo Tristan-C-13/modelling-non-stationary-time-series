@@ -176,7 +176,7 @@ if __name__ == '__main__':
                spread_time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
     
     # TRADING SIMULATION
-    # launch_trading_simulation(2000, 1, 3)
+    # launch_trading_simulation1(2000, 1, 3)
     pnl_series = pd.read_csv('data/pnl_series2.csv', index_col='datetime')
     fig, ax = plt.subplots()
     ax.plot(pnl_series.to_numpy())
