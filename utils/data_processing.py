@@ -54,3 +54,18 @@ def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFram
     end_datetime = data_df.index[-1]
     logging.info(f"Data downloaded: from {start_datetime} to {end_datetime}")
     return data_df
+
+
+#######################
+# Reducing edge effects
+#######################
+def reflect_time_series(time_series: np.ndarray, left_point: tuple[float] = None, right_point: tuple[float] = None) -> np.ndarray:
+    new_time_series = time_series.copy()
+    if right_point is not None:
+        time_series_right = np.flip(2 * right_point[1] - time_series)
+        new_time_series = np.concatenate([new_time_series, time_series_right])
+    if left_point is not None:
+        time_series_left = np.flip(2 * left_point[1] - time_series)
+        new_time_series = np.concatenate([time_series_left, new_time_series])
+    return new_time_series
+    

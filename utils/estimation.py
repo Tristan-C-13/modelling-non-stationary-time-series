@@ -19,7 +19,7 @@ def estimate_local_autocovariance(X: np.ndarray, t_0: int, k: int, kernel: Kerne
     T = X.shape[0]
     return np.sum(
         (
-            kernel((t_0 - (np.arange(T-k) + k/2)) / (bandwidth * T)).repeat(X.shape[1]).reshape(X[k:, :].shape) 
+            kernel(-(t_0 - (np.arange(T-k) + k/2)) / (bandwidth * T)).repeat(X.shape[1]).reshape(X[k:, :].shape) 
             * X[:T-k, :] 
             * X[k:, :]
         ), axis=0) / (bandwidth * T)
@@ -38,7 +38,7 @@ def estimate_local_mean(X: np.ndarray, t_0: int, kernel: Kernel, bandwidth: floa
     T = X.shape[0]
     return np.sum(
         (
-            kernel((t_0 - np.arange(T)) / (bandwidth * T)).repeat(X.shape[1]).reshape(X.shape)
+            kernel(-(t_0 - np.arange(T)) / (bandwidth * T)).repeat(X.shape[1]).reshape(X.shape)
             * X 
         ), axis=0) / (bandwidth * T)
 

@@ -1,10 +1,19 @@
 import numpy as np
 
 
+
 class Kernel:
 
     def __init__(self, kernel_str) -> None:
-        assert kernel_str in ["gaussian", "uniform", "epanechnikov", "quadratic", "triangular"]
+        assert kernel_str in [
+            "gaussian", 
+            "uniform", 
+            "epanechnikov", 
+            "quadratic", 
+            "triangular", 
+            "one-sided epanechnikov (R)",
+            "one-sided epanechnikov (L)"
+            ]
         self.kernel_str = kernel_str
 
     def __call__(self, x):
@@ -18,4 +27,8 @@ class Kernel:
             return 15 / 16 * (1 - x ** 2) ** 2 * (np.abs(x) <= 1)
         elif self.kernel_str == "triangular":
             return (1 - np.abs(x)) * (np.abs(x) <= 1)
+        elif self.kernel_str == "one-sided epanechnikov (R)":
+            return (1 - x ** 2) * 3 / 2 * (x > 0) * (x < 1)
+        elif self.kernel_str == "one-sided epanechnikov (L)":
+            return (1 - x ** 2) * 3 / 2 * (x > -1) * (x < 0)
     

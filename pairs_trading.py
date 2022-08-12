@@ -10,53 +10,11 @@ from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
 from utils.data_processing import get_dates_str, download_and_prepare_data
 from utils.kernels import Kernel
-from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
+from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p 
 from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters
-from utils.trading import Portfolio
+from utils.trading import Portfolio, get_actions_and_forecasts, check_entry_trade, hit_ratio
 
 sns.set_style("whitegrid")
-
-
-##################
-# TRADES / SIGNALS
-##################
-def check_entry_trade(time_series, p=1, kernel_str="epanechnikov", k=3):
-    """
-    For a given time series, returns the forecasted entry trade action. It is one of three possibilities:
-    * 'SHORT': sell A, buy B
-    * 'LONG'; buy A, sell B
-    * None: no signal found.
-
-    --- parameters
-    Same parameters that are used in the estimation and extrapolation of the coefficients for a tvAR(p) process.
-    """
-    u_list = np.linspace(0, 1, 100, endpoint=False)
-    T = time_series.shape[0]
-    b_T = 0.1 * T ** (-1/5)
-
-    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel(kernel_str), bandwidth=b_T)
-    alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
-    sigma_hat = theta_hat[:, -1, :].squeeze()
-
-    alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=k)
-    x_star = forecast_future_values_tvAR_p(alpha_extrapolated, time_series)
-    
-    moving_std = time_series[-24:].std()
-    moving_mean = time_series[-24:].mean()
-    z = (x_star - moving_mean) / moving_std
-
-    # Localized version of the sample mean / std on the last 36 hours. The local point is chosen in the middle of the interval
-    # localized_mean = estimate_local_mean(time_series[-36:].reshape(-1, 1), 18, Kernel(kernel_str), b_T)   
-    # # estimate_local_mean(time_series, int(0.95 * T), Kernel(kernel_str), b_T)
-    # localized_std = np.sqrt(estimate_local_autocovariance(time_series[-36:].reshape(-1, 1), 18, 0, Kernel(kernel_str), b_T))
-    # z_local = (x_star - localized_mean) / localized_std
-
-    if z > 1:
-        return ('SHORT', x_star, z)  # sell A, buy B
-    elif z < -1:
-        return ('LONG', x_star, z)   # buy A, sell B
-    else:
-        return (None, x_star, z)
 
 
 ##################
@@ -109,16 +67,11 @@ def plot_rolling_forecasts(time_series, n_forecasts=50, n_last_points=80, p=1, k
     ax.set_title("Extrapolation of alpha_1")
 
 def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3):
-    # Define windows of time series. 1 time series has length T and is associated with 1 forecast
-    T = time_series.shape[0] - n_forecasts
-    windows = np.lib.stride_tricks.sliding_window_view(time_series, T)[:-1]
-    actions = np.empty(windows.shape[0], dtype=object)
-    z_list = np.empty(windows.shape[0], dtype=object)
-    forecasts = np.empty(windows.shape[0])
-    for i, time_series_i in enumerate(windows):
-        actions[i], forecasts[i], z_list[i] = check_entry_trade(time_series_i, p, k=k)
+    (actions, forecasts, z_list) = get_actions_and_forecasts(time_series=time_series, n_forecasts=n_forecasts, p=p, k=k)
+    print(scipy.stats.spearmanr(time_series[-n_forecasts:], forecasts))
     
     # Plot figure
+    ## time series and forecasts
     fig, ax = plt.subplots()
     x = np.arange(n_last_points)
     ax.plot(x, time_series[-n_last_points:])
@@ -131,7 +84,7 @@ def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3
                time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
     ax.set_title(f"Trade Signals ({k=}, {p=})")
     ax.legend()
-
+    ## z
     fig, ax = plt.subplots()
     ax.plot(x[-n_forecasts:], z_list, color='green', label='z')
 
@@ -240,29 +193,29 @@ if __name__ == '__main__':
     k = 3  # order of the spline interpolation
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + 200) 
+    start, end = get_dates_str(10000 + 2000) 
     print(f"start: {start}", f"end: {end}", sep='\n')
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     # data_df.to_csv("data/data.csv", index=False)
     data_df = pd.read_csv("data/data.csv")
-    # spread_time_series = data_df['spread_log_returns'].to_numpy()
-    spread_time_series = np.log(1 + data_df['spread'].pct_change().dropna()).to_numpy()
+    time_series = data_df['spread_log_returns'].to_numpy()
+    spread_time_series = data_df['spread'].to_numpy()
 
     # PLOTS & ANALYSES  
-    # make_general_plots(spread_time_series, p=p, k=k)
-    # plot_rolling_forecasts(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
-    # plot_rolling_entries(spread_time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
+    # make_general_plots(time_series, p=p, k=k)
+    # plot_rolling_forecasts(time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
+    # plot_rolling_entries(time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
 
-    fig, axs = plt.subplots(4, 1)
-    axs[0].plot(data_df['spread'])
-    axs[0].set_title('spread of prices')
-    axs[1].plot(data_df['spread_log'])
-    axs[1].set_title('spread of log prices')
-    axs[2].plot(data_df['spread_log_returns'])
-    axs[2].set_title('spread of log returns')
-    axs[3].plot(np.log(1 + data_df['spread'].pct_change().dropna()), label='log returns of the spread')
-    axs[3].set_title('log returns of the spread')
-
+    n_forecasts = 2000
+    (actions, forecasts, z_list) = get_actions_and_forecasts(time_series=time_series, n_forecasts=n_forecasts, p=p, k=k)
+    print(hit_ratio(time_series, forecasts, actions))
+    x = np.arange(n_forecasts + 100)
+    fig, ax = plt.subplots()
+    ax.plot(x, spread_time_series[-(n_forecasts+100):])
+    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'LONG')] - 1,
+               spread_time_series[-n_forecasts + np.argwhere(actions == 'LONG') - 1], marker='^', color='green', label='Open LONG')
+    ax.scatter(x[-n_forecasts + np.argwhere(actions == 'SHORT') - 1],
+               spread_time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
     
     # TRADING SIMULATION
     # launch_trading_simulation(p=p, k=k)
