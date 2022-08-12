@@ -48,6 +48,8 @@ def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFram
     data_df['spread'] = data_df['btc_close'] - data_df['eth_close']
     data_df['spread_log'] = np.log(data_df['btc_close'] / data_df['eth_close'])
     data_df['spread_log_returns'] = data_df['btc_log_returns'] - data_df['eth_log_returns']
+    # Format the index
+    data_df.index = data_df.index.strftime("%Y-%m-%d %H:%M:%S")
 
     # logging info
     start_datetime = data_df.index[0]

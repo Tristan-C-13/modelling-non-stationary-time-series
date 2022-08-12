@@ -88,48 +88,6 @@ def plot_rolling_entries(time_series, n_forecasts=50, n_last_points=80, p=1, k=3
     fig, ax = plt.subplots()
     ax.plot(x[-n_forecasts:], z_list, color='green', label='z')
 
-def launch_trading_simulation(n_hours=2000, p=1, k=3):
-    """
-    --- parameters
-    - n_hours: Number of hours of simulated trading
-    - p: Order of the tvAR(p) model
-    - k: Order of the spline interpolation
-    """
-    # Data & Spread: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + n_hours) 
-    data_df = pd.read_csv("data/data.csv")
-
-    # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
-    spread_time_series = data_df['spread'].to_numpy()
-
-    # Initialize the portfolio: 0 BTC and 0 ETH
-    # portfolio = Portfolio(dt.datetime.fromtimestamp(data_df.index[0].timestamp()).strftime("%Y-%m-%d %H:%M:%S"))
-    portfolio = Portfolio(data_df.index[0])
-
-    T = spread_time_series.shape[0] - n_hours
-    for i in range(n_hours):
-        date = dt.datetime.fromtimestamp(data_df.index[i].timestamp()).strftime("%Y-%m-%d %H:%M:%S")
-        time_series_i = spread_time_series[i : T+i]
-        btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
-        eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
-
-        # Close previous positions
-        portfolio.close_positions(btc_close, eth_close, date)
-
-        # Forecast and get trade signal
-        action, _, _ = check_entry_trade(time_series_i, p, k=k)
-
-        # Pass an order if there is a trade signal
-        if action is not None:
-            side_btc = 'BUY' if action == 'LONG' else 'SELL'
-            side_eth = 'BUY' if action == 'SHORT' else 'SELL'
-            portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
-            portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-            portfolio.pnl_dict[date] = portfolio.pnl
-
-    pnl_dict = portfolio.get_pnl_dict()
-    print(portfolio.pnl) # print(pd.Series(pnl_dict))
-
 
 ##################
 # OTHER
@@ -196,8 +154,8 @@ if __name__ == '__main__':
     start, end = get_dates_str(10000 + 2000) 
     print(f"start: {start}", f"end: {end}", sep='\n')
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
-    # data_df.to_csv("data/data.csv", index=False)
-    data_df = pd.read_csv("data/data.csv")
+    # data_df.to_csv("data/data.csv", index=True, index_label='datetime')
+    data_df = pd.read_csv("data/data.csv", index_col='datetime', parse_dates=True)
     time_series = data_df['spread_log_returns'].to_numpy()
     spread_time_series = data_df['spread'].to_numpy()
 
@@ -206,7 +164,7 @@ if __name__ == '__main__':
     # plot_rolling_forecasts(time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
     # plot_rolling_entries(time_series, p=p, k=k, n_forecasts=200, n_last_points=220)
 
-    n_forecasts = 2000
+    n_forecasts = 200
     (actions, forecasts, z_list) = get_actions_and_forecasts(time_series=time_series, n_forecasts=n_forecasts, p=p, k=k)
     print(hit_ratio(time_series, forecasts, actions))
     x = np.arange(n_forecasts + 100)
@@ -218,9 +176,9 @@ if __name__ == '__main__':
                spread_time_series[-n_forecasts + np.argwhere(actions == 'SHORT') - 1], marker='v', color='black', label='Open SHORT')
     
     # TRADING SIMULATION
-    # launch_trading_simulation(p=p, k=k)
+    # launch_trading_simulation(2000, 1, 3)
+    pnl_series = pd.read_csv('data/pnl_series2.csv', index_col='datetime')
+    fig, ax = plt.subplots()
+    ax.plot(pnl_series.to_numpy())
 
     plt.show()
-
-
-
