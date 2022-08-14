@@ -1,6 +1,8 @@
 import numpy as np
 import pandas as pd
 
+import logging
+
 from .data_processing import get_dates_str
 from .estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
 from .kernels import Kernel
@@ -119,7 +121,7 @@ def get_actions_and_forecasts(time_series, threshold=1, n_forecasts=50, p=1, k=3
 ##################
 def hit_ratio(time_series_spread_log_returns, forecasts, actions):
     """
-    Returns the ratio (number of time the forecast had the right direction) / (number of forecasts)
+    Returns the ratio (number of time the forecast had the right direction) / (number of forecasts) everytime a trade signal is detected.
     time_series.shape[0] >= forecasts.shape[0] + 1
     """
     n_forecasts = forecasts.shape[0]
@@ -138,7 +140,7 @@ def hit_ratio(time_series_spread_log_returns, forecasts, actions):
 ########################
 # BACKTESTS / STRATEGIES    
 ########################
-def launch_trading_simulation1(n_hours=2000, p=1, k=3):
+def launch_trading_simulation1(n_hours=2000, p=1, k=3, filename='pnl_series_strat1.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > 1 and unwind it the next hour.
@@ -149,14 +151,19 @@ def launch_trading_simulation1(n_hours=2000, p=1, k=3):
     - k: Order of the spline interpolation
     """
     # Data & Spread: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + n_hours) 
-    data_df = pd.read_csv("data/data.csv", index_col='datetime', parse_dates=True)
+    data_df = pd.read_csv("data/data-full.csv", index_col='datetime', parse_dates=True)
+    data_df = data_df.iloc[-(n_hours + 10_000):, :]
+    start = data_df.index[0]
+    end = data_df.index[-1]
+    logging.info(f"Simulation launched from {start} to {end}")
 
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     spread_time_series = data_df['spread_log_returns'].to_numpy()
+    forecasts = np.empty((n_hours,))
+    actions = np.empty((n_hours,), dtype=object)
 
     # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(data_df.index[0])
+    portfolio = Portfolio(start)
 
     T = spread_time_series.shape[0] - n_hours
     for i in range(n_hours):
@@ -170,8 +177,10 @@ def launch_trading_simulation1(n_hours=2000, p=1, k=3):
         # Close previous positions
         portfolio.close_positions(btc_close, eth_close, date)
         # Forecast and get trade signal
-        _, z_score = get_forecast_zscore(time_series_i, p, k)
+        forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, 1)
+        forecasts[i] = forecast
+        actions[i] = action
         # Pass an order if there is a trade signal
         if action is not None:
             side_btc = 'BUY' if action == 'LONG' else 'SELL'
@@ -183,19 +192,21 @@ def launch_trading_simulation1(n_hours=2000, p=1, k=3):
         portfolio.pnl_dict[date] = portfolio.pnl
     
         # Verbose
-        if (i+1) % 50 == 0:
+        if (i+1) % 100 == 0:
             print(f"step {i+1} / {n_hours}")
 
     # Close the final positions at the end of the trading period
     portfolio.close_positions(btc_close, eth_close, date)
 
-    # Save result
+    # Save result and log the hit ratio
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
-    pnl_series.to_csv('./data/pnl_series_strat1.csv', index_label='datetime')
+    pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
+    hit_ratio_ = hit_ratio(spread_time_series, forecasts, actions)
+    logging.info(f"Ratios: {hit_ratio_}")
 
 
-def launch_trading_simulation2(n_hours=2000, p=1, k=3):
+def launch_trading_simulation2(n_hours=2000, p=1, k=3, filename='pnl_series_strat2.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > 1 and unwind it when the opposite signal comes.
@@ -206,14 +217,19 @@ def launch_trading_simulation2(n_hours=2000, p=1, k=3):
     - k: Order of the spline interpolation
     """
     # Data & Spread: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + n_hours) 
-    data_df = pd.read_csv("data/data.csv", index_col='datetime', parse_dates=True)
+    data_df = pd.read_csv("data/data-full.csv", index_col='datetime', parse_dates=True)
+    data_df = data_df.iloc[-(n_hours + 10_000):, :]
+    start = data_df.index[0]
+    end = data_df.index[-1]
+    logging.info(f"Simulation launched from {start} to {end}")
 
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     spread_time_series = data_df['spread_log_returns'].to_numpy()
+    forecasts = np.empty((n_hours,))
+    actions = np.empty((n_hours,), dtype=object)
 
     # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(data_df.index[0])
+    portfolio = Portfolio(start)
 
     T = spread_time_series.shape[0] - n_hours
     for i in range(n_hours):
@@ -226,8 +242,9 @@ def launch_trading_simulation2(n_hours=2000, p=1, k=3):
         portfolio.update_crypto(btc_close, eth_close)
         
         # Forecast and get trade signal
-        _, z_score = get_forecast_zscore(time_series_i, p, k)
+        forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, 1)
+        forecasts[i] = forecast
         # Pass an order if there is a trade signal
         if action is not None:
             # Close previous positions and enter new ones if it is the opposite / new signal
@@ -238,18 +255,21 @@ def launch_trading_simulation2(n_hours=2000, p=1, k=3):
                 portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
                 portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
                 portfolio.last_action = action
+                actions[i] = action
         # Update P&L and save it 
         portfolio.update_pnl()
         portfolio.pnl_dict[date] = portfolio.pnl
 
         # Verbose
-        if (i+1) % 50 == 0:
+        if (i+1) % 100 == 0:
             print(f"step {i+1} / {n_hours}")
 
     # Close the final positions at the end of the trading period
     portfolio.close_positions(btc_close, eth_close, date)
 
-    # Save result
+    # Save result and log hit ratio
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
-    pnl_series.to_csv('./data/pnl_series_strat2.csv', index_label='datetime')
+    pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
+    hit_ratio_ = hit_ratio(spread_time_series, forecasts, actions)
+    logging.info(f"Ratios: {hit_ratio_}")
