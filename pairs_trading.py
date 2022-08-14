@@ -12,7 +12,7 @@ from utils.data_processing import get_dates_str, download_and_prepare_data
 from utils.kernels import Kernel
 from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p 
 from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters
-from utils.trading import get_actions_and_forecasts, launch_trading_simulation1, launch_trading_simulation2
+from utils.trading import get_actions_and_forecasts, launch_trading_simulation1, launch_trading_simulation2, launch_trading_simulation3
 
 sns.set_style("whitegrid")
 
@@ -158,8 +158,7 @@ if __name__ == '__main__':
     k = 3  # order of the spline interpolation
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    start, end = get_dates_str(10000 + 7000) 
-    print(f"start: {start}", f"end: {end}", sep='\n')
+    # start, end = get_dates_str(10000 + 7000) 
     # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
     # data_df.to_csv("data/data-full.csv", index=True, index_label='datetime')
     data_df = pd.read_csv("data/data-full.csv", index_col='datetime', parse_dates=True)
@@ -173,14 +172,20 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    launch_trading_simulation1(1000, 1, 3, 'data/pnl_series_strat1-delete.csv')
-    # launch_trading_simulation2(5000, 1, 3, 'data/pnl_series_strat2-5000.csv')
-    # pnl_series_1 = pd.read_csv('data/pnl_simulations/pnl_series_strat1.csv', index_col='datetime')
-    # pnl_series_2 = pd.read_csv('data/pnl_simulations/pnl_series_strat2-5000.csv', index_col='datetime')
-    # fig, axs = plt.subplots(2, 1)
-    # axs[0].plot(pnl_series_1.to_numpy())
-    # axs[0].set_title("Strategy 1")
-    # axs[1].plot(pnl_series_2.to_numpy())
-    # axs[1].set_title("Strategy 2")
+    launch_trading_simulation1(data_df, 2000, p, k, 'pnl_series_strat1-delete.csv')
+    launch_trading_simulation2(data_df, 2000, p, k, 'pnl_series_strat2-delete.csv')
+    launch_trading_simulation3(data_df, 2000, p, k, 'pnl_series_strat3-delete.csv')
+
+    pnl_series_1 = pd.read_csv('data/pnl_simulations/pnl_series_strat1-delete.csv', index_col='datetime')
+    pnl_series_2 = pd.read_csv('data/pnl_simulations/pnl_series_strat2-delete.csv', index_col='datetime')
+    pnl_series_3 = pd.read_csv('data/pnl_simulations/pnl_series_strat3-delete.csv', index_col='datetime')
+
+    fig, axs = plt.subplots(3, 1)
+    axs[0].plot(pnl_series_1.to_numpy())
+    axs[0].set_title("Strategy 1")
+    axs[1].plot(pnl_series_2.to_numpy())
+    axs[1].set_title("Strategy 2")
+    axs[2].plot(pnl_series_3.to_numpy())
+    axs[2].set_title("Strategy 3")
 
     plt.show()
