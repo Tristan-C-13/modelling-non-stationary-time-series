@@ -10,7 +10,7 @@ import yfinance as yf
 logging.basicConfig(level=logging.INFO)
 
 
-def get_dates_str(num_hours:int, end:str = None) -> tuple[str, str]:
+def get_dates_str(num_hours: int, end: str = None) -> tuple[str, str]:
     """
     Returns two string dates separated by num_hours hours. Note, there will be **approximately** num_hours between the two dates.
 
@@ -19,11 +19,11 @@ def get_dates_str(num_hours:int, end:str = None) -> tuple[str, str]:
     - end: end date in format YYYY-MM-DD. If end is None, then it is today's date.
     """
     if end is None:
-        end = dt.date.today()
+        end = dt.datetime.today()
     else:
-        end = dt.datetime.strptime(end, "%Y-%m-%d").date()
+        end = dt.datetime.strptime(end, "%Y-%m-%d")
     start = end - dt.timedelta(hours=num_hours)
-    return start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+    return start.strftime("%Y-%m-%d %H:%M"), end.strftime("%Y-%m-%d %H:%M")
 
 
 def download_and_prepare_data(symbol1:str, symbol2:str, **kwargs) -> pd.DataFrame:
@@ -88,6 +88,7 @@ def load_spread_btc_eth(start: str = None, end: str = None) -> pd.DataFrame:
         # Compute spreads
         data_df = pd.concat([btc_df, eth_df], axis=1)
         data_df = data_df.dropna()
+        data_df = data_df.reindex(pd.date_range(data_df.index.min(), data_df.index.max(), freq='1H'), method='ffill')
         data_df['spread'] = data_df['btc_close'] - data_df['eth_close']
         data_df['spread_log_returns'] = data_df['btc_log_returns'] - data_df['eth_log_returns']
 

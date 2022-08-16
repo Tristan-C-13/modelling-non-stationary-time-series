@@ -8,7 +8,7 @@ import datetime as dt
 from statsmodels.tsa.stattools import pacf
 from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
-from utils.data_processing import get_dates_str, download_and_prepare_data
+from utils.data_processing import get_dates_str, download_and_prepare_data, load_spread_btc_eth
 from utils.kernels import Kernel
 from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p 
 from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters
@@ -154,14 +154,15 @@ def make_general_plots(time_series, p=1, k=3):
 
 if __name__ == '__main__':
     # Parameters
-    p = 1  # order of the tvAR(p)
-    k = 3  # order of the spline interpolation
+    p = 1       # order of the tvAR(p)
+    k = 3       # order of the spline interpolation
+    T = 10_000  # length of each time series
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    # start, end = get_dates_str(10000 + 7000) 
-    # data_df = download_and_prepare_data("BTC-USD", "ETH-USD", start=start, end=end, interval="1h")
-    # data_df.to_csv("data/data-full.csv", index=True, index_label='datetime')
-    data_df = pd.read_csv("data/data-full.csv", index_col='datetime', parse_dates=True)
+    n_simulations = 2000
+    # start, end = get_dates_str(n_simulations + T, '2022-08-14')
+    start, end = get_dates_str(n_simulations + T, '2021-12-31')
+    data_df = load_spread_btc_eth(start, end)
     time_series = data_df['spread_log_returns'].to_numpy()
     spread_time_series = data_df['spread'].to_numpy()
 
@@ -172,13 +173,13 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    launch_trading_simulation1(data_df, 2000, p, k, 'pnl_series_strat1-delete.csv')
-    launch_trading_simulation2(data_df, 2000, p, k, 'pnl_series_strat2-delete.csv')
-    launch_trading_simulation3(data_df, 2000, p, k, 'pnl_series_strat3-delete.csv')
+    launch_trading_simulation1(data_df, T, p, k, 'pnl_series_strat1-end2021.csv')
+    launch_trading_simulation2(data_df, T, p, k, 'pnl_series_strat2-end2021.csv')
+    launch_trading_simulation3(data_df, T, p, k, 'pnl_series_strat3-end2021.csv')
 
-    pnl_series_1 = pd.read_csv('data/pnl_simulations/pnl_series_strat1-delete.csv', index_col='datetime')
-    pnl_series_2 = pd.read_csv('data/pnl_simulations/pnl_series_strat2-delete.csv', index_col='datetime')
-    pnl_series_3 = pd.read_csv('data/pnl_simulations/pnl_series_strat3-delete.csv', index_col='datetime')
+    pnl_series_1 = pd.read_csv('data/pnl_simulations/pnl_series_strat1-end2021.csv', index_col='datetime')
+    pnl_series_2 = pd.read_csv('data/pnl_simulations/pnl_series_strat2-end2021.csv', index_col='datetime')
+    pnl_series_3 = pd.read_csv('data/pnl_simulations/pnl_series_strat3-end2021.csv', index_col='datetime')
 
     fig, axs = plt.subplots(3, 1)
     axs[0].plot(pnl_series_1.to_numpy())

@@ -3,7 +3,6 @@ import pandas as pd
 
 import logging
 
-from .data_processing import get_dates_str
 from .estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
 from .kernels import Kernel
 from .interpolation import extrapolate_parameters
@@ -15,22 +14,23 @@ class Portfolio:
         self.crypto = 0   # no initial position
         self.pnl = self.cash + self.crypto
         self.pnl_dict = {start_date: self.pnl}
+        self.actions_dict = dict() 
 
-    def insert_order(self, instrument_id:str, side:str, price:float, volume:float) -> None:
+    def insert_order(self, instrument_id: str, side: str, price: float, volume: float) -> None:
         assert side in ['BUY', 'SELL']
         sign = -1 if side == 'SELL' else 1
         self.positions[instrument_id] += sign * volume
         self.cash -= sign * volume * price
         self.crypto += sign * volume * price
-        # self.pnl -= sign * volume * price
 
-    def close_positions(self, btc_close:float, eth_close:float, date) -> None:
-        # self.update_pnl(btc_close, eth_close, date)
+    def close_positions(self, date: str) -> None:
         self.cash += self.crypto
         self.crypto = 0
         self.positions = {key: 0 for key in self.positions.keys()}
+        if self.hold_positions:
+            self.add_action(date, 'CLOSE')
 
-    def get_positions_value(self, btc_close:float, eth_close:float) -> float:
+    def get_positions_value(self, btc_close: float, eth_close: float) -> float:
         return self.positions['BTC-USD'] * btc_close + self.positions['ETH-USD'] * eth_close
 
     def update_crypto(self, btc_close: float, eth_close: float) -> None:
@@ -39,8 +39,14 @@ class Portfolio:
     def update_pnl(self) -> None:
         self.pnl = self.crypto + self.cash
 
-    def get_pnl_dict(self) -> list[float]:
+    def get_pnl_dict(self) -> dict:
         return self.pnl_dict
+
+    def add_action(self, date: str, action: str) -> None:
+        if date in self.actions_dict.keys():
+            self.actions_dict[date].append(action)
+        else:
+            self.actions_dict[date] = [action]
 
     @property
     def hold_positions(self):
@@ -141,41 +147,40 @@ def hit_ratio(time_series_spread_log_returns, forecasts, actions):
 ########################
 # BACKTESTS / STRATEGIES    
 ########################
-def launch_trading_simulation1(data_df, n_hours=2000, p=1, k=3, filename='pnl_series_strat1.csv'):
+def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, filename='pnl_series_strat1.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > 1 and unwind it the next hour.
 
     --- parameters
-    - n_hours: Number of hours of simulated trading
+    - data_df: dataframe with the data
+    - T: length of each time series for fitting the model
     - p: Order of the tvAR(p) model
     - k: Order of the spline interpolation
     - filename: name of the csv file where the time series of the P&L is saved
     """
     # Data & Spread: BTC-USD / ETH-USD
-    assert data_df.shape[0] > (10_000 + n_hours), "The time series needs to have at least 10 000 + n_hours rows."
-    data_df = data_df.iloc[-(n_hours + 10_000):, :] # only keep the rows that are going to be used
-    start = data_df.index[0]
+    assert data_df.shape[0] > T, f"The time series needs to have at least {T} rows."
+    n_hours = data_df.shape[0] - T # number of hours of simulation
+    start = data_df.index[T]
     end = data_df.index[-1]
-    logging.info(f"Simulation launched from {start} to {end}")
-    spread_time_series = data_df['spread_log_returns'].to_numpy()
+    logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
     forecasts = np.empty((n_hours,))
     actions = np.empty((n_hours,), dtype=object)
 
     # Initialize the portfolio: 0 BTC and 0 ETH
     portfolio = Portfolio(start)
 
-    T = spread_time_series.shape[0] - n_hours
     for i in range(n_hours):
         date = data_df.index[i]
-        time_series_i = spread_time_series[i : T+i]
+        time_series_i = data_df.loc[data_df.index[i : T+i], 'spread_log_returns'].to_numpy()
         btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
         eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
 
         # Update crypto value
         portfolio.update_crypto(btc_close, eth_close)
         # Close previous positions
-        portfolio.close_positions(btc_close, eth_close, date)
+        portfolio.close_positions(date)
         # Forecast and get trade signal
         forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, 1)
@@ -190,6 +195,7 @@ def launch_trading_simulation1(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
         # Update P&L and save it 
         portfolio.update_pnl()
         portfolio.pnl_dict[date] = portfolio.pnl
+        portfolio.add_action(date, action)
     
         # Verbose
         if (i+1) % 100 == 0:
@@ -202,28 +208,29 @@ def launch_trading_simulation1(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
     pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
-    hit_ratio_ = hit_ratio(spread_time_series, forecasts, actions)
+    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), forecasts, actions)
     logging.info(f"Ratios: {hit_ratio_}")
+    return portfolio, actions, forecasts
 
 
-def launch_trading_simulation2(data_df, n_hours=2000, p=1, k=3, filename='pnl_series_strat2.csv'):
+def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, filename='pnl_series_strat2.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > 1 and unwind it when the opposite signal comes.
 
     --- parameters
-    - n_hours: Number of hours of simulated trading
+    - data_df: dataframe with the data
+    - T: length of each time series for fitting the model
     - p: Order of the tvAR(p) model
     - k: Order of the spline interpolation
     - filename: name of the csv file where the time series of the P&L is saved
     """
     # Data & Spread: BTC-USD / ETH-USD
-    assert data_df.shape[0] > (10_000 + n_hours), "The time series needs to have at least 10 000 + n_hours rows."
-    data_df = data_df.iloc[-(n_hours + 10_000):, :] # only keep the rows that are going to be used
-    start = data_df.index[0]
+    assert data_df.shape[0] > T, f"The time series needs to have at least {T} rows."
+    n_hours = data_df.shape[0] - T # number of hours of simulation
+    start = data_df.index[T]
     end = data_df.index[-1]
-    logging.info(f"Simulation launched from {start} to {end}")
-    spread_time_series = data_df['spread_log_returns'].to_numpy()
+    logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
     forecasts = np.empty((n_hours,))
     actions = np.empty((n_hours,), dtype=object)
     last_action = None
@@ -231,10 +238,9 @@ def launch_trading_simulation2(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
     # Initialize the portfolio: 0 BTC and 0 ETH
     portfolio = Portfolio(start)
 
-    T = spread_time_series.shape[0] - n_hours
     for i in range(n_hours):
         date = data_df.index[i]
-        time_series_i = spread_time_series[i : T+i]
+        time_series_i = data_df.loc[data_df.index[i : T+i], 'spread_log_returns'].to_numpy()
         btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
         eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
 
@@ -244,20 +250,21 @@ def launch_trading_simulation2(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
         forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, 1)
         forecasts[i] = forecast
-        # Pass an order if there is a trade signal
-        if action is not None:
-            # Close previous positions and enter new ones if it is the opposite / new signal
-            if action != last_action:
-                portfolio.close_positions(btc_close, eth_close, date)
-                side_btc = 'BUY' if action == 'LONG' else 'SELL'
-                side_eth = 'BUY' if action == 'SHORT' else 'SELL'
-                portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
-                portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-                last_action = action
-                actions[i] = action
+        # Close previous positions and enter new ones if it is the opposite / new signal
+        if action is not None and action != last_action:
+            portfolio.close_positions()
+            side_btc = 'BUY' if action == 'LONG' else 'SELL'
+            side_eth = 'BUY' if action == 'SHORT' else 'SELL'
+            portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
+            portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
+            last_action = action
+            actions[i] = action
+        else:
+            action = None
         # Update P&L and save it 
         portfolio.update_pnl()
         portfolio.pnl_dict[date] = portfolio.pnl
+        portfolio.add_action(date, action)
 
         # Verbose
         if (i+1) % 100 == 0:
@@ -270,39 +277,38 @@ def launch_trading_simulation2(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
     pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
-    hit_ratio_ = hit_ratio(spread_time_series, forecasts, actions)
+    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), forecasts, actions)
     logging.info(f"Ratios: {hit_ratio_}")
+    return portfolio, actions, forecasts
 
 
-# third strategy: unwind position when forecast is close to zero: no need to wait for next signal
-def launch_trading_simulation3(data_df, n_hours=2000, p=1, k=3, filename='pnl_series_strat3.csv'):
+def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, filename='pnl_series_strat3.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > 1 and unwind it when the spread returns close to the mean: abs(z_score) < 0.5.
 
     --- parameters
-    - n_hours: Number of hours of simulated trading
+    - data_df: dataframe with the data
+    - T: length of each time series for fitting the model
     - p: Order of the tvAR(p) model
     - k: Order of the spline interpolation
     - filename: name of the csv file where the time series of the P&L is saved
     """
     # Data & Spread: BTC-USD / ETH-USD
-    assert data_df.shape[0] > (10_000 + n_hours), "The time series needs to have at least 10 000 + n_hours rows."
-    data_df = data_df.iloc[-(n_hours + 10_000):, :] # only keep the rows that are going to be used
-    start = data_df.index[0]
+    assert data_df.shape[0] > T, f"The time series needs to have at least {T} rows."
+    n_hours = data_df.shape[0] - T # number of hours of simulation
+    start = data_df.index[T]
     end = data_df.index[-1]
-    logging.info(f"Simulation launched from {start} to {end}")
-    spread_time_series = data_df['spread_log_returns'].to_numpy()
+    logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
     forecasts = np.empty((n_hours,))
     actions = np.empty((n_hours,), dtype=object)
 
     # Initialize the portfolio: 0 BTC and 0 ETH
     portfolio = Portfolio(start)
 
-    T = spread_time_series.shape[0] - n_hours
     for i in range(n_hours):
         date = data_df.index[i]
-        time_series_i = spread_time_series[i : T+i]
+        time_series_i = data_df.loc[data_df.index[i : T+i], 'spread_log_returns'].to_numpy()
         btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
         eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
 
@@ -314,7 +320,7 @@ def launch_trading_simulation3(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
         forecasts[i] = forecast
         # Close positions if the spread returned to the mean
         if z_score < 0.5:
-            portfolio.close_positions(btc_close, eth_close, date)
+            portfolio.close_positions()
         # Pass an order if there is a trade signal and we don't have any position
         if action is not None and not portfolio.hold_positions:
             side_btc = 'BUY' if action == 'LONG' else 'SELL'
@@ -323,9 +329,12 @@ def launch_trading_simulation3(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
             portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
             portfolio.last_action = action
             actions[i] = action
+        else:
+            action = None
         # Update P&L and save it 
         portfolio.update_pnl()
         portfolio.pnl_dict[date] = portfolio.pnl
+        portfolio.add_action(date, action)
 
         # Verbose
         if (i+1) % 100 == 0:
@@ -338,5 +347,6 @@ def launch_trading_simulation3(data_df, n_hours=2000, p=1, k=3, filename='pnl_se
     pnl_dict = portfolio.get_pnl_dict()
     pnl_series = pd.Series(pnl_dict)
     pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
-    hit_ratio_ = hit_ratio(spread_time_series, forecasts, actions)
+    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), forecasts, actions)
     logging.info(f"Ratios: {hit_ratio_}")
+    return portfolio, actions, forecasts
