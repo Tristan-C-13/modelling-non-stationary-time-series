@@ -24,11 +24,11 @@ class Portfolio:
         self.crypto += sign * volume * price
 
     def close_positions(self, date: str) -> None:
+        if self.hold_positions:
+            self.add_action(date, 'CLOSE')
         self.cash += self.crypto
         self.crypto = 0
         self.positions = {key: 0 for key in self.positions.keys()}
-        if self.hold_positions:
-            self.add_action(date, 'CLOSE')
 
     def get_positions_value(self, btc_close: float, eth_close: float) -> float:
         return self.positions['BTC-USD'] * btc_close + self.positions['ETH-USD'] * eth_close
