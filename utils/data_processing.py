@@ -69,13 +69,15 @@ def load_spread_btc_eth(start: str = None, end: str = None) -> pd.DataFrame:
     """
     # Load csv if it already exists:
     if os.path.exists('data/data-binance.csv'):
-        data_df = pd.read_csv('data/data-binance.csv', index_col='date')
+        data_df = pd.read_csv('data/data-binance.csv', parse_dates=True, index_col='date')
     else:
         # Load historical data
-        btc_df = pd.read_csv('data/Binance_BTCUSDT_1h.csv', sep=';', parse_dates=True, index_col='date', usecols=['date', 'close'])
+        btc_df = pd.read_csv('data/Binance_BTCUSDT_1h.csv', sep=';', parse_dates=True,
+                             index_col='date', usecols=['date', 'close'], dayfirst=True)
         btc_df = btc_df.rename(columns={'close': 'btc_close'})
         btc_df = btc_df.sort_index(ascending=True) # Reverse to have recent values at the end
-        eth_df = pd.read_csv('data/Binance_ETHUSDT_1h.csv', sep=';', parse_dates=True, index_col='date', usecols=['date', 'close'])
+        eth_df = pd.read_csv('data/Binance_ETHUSDT_1h.csv', sep=';', parse_dates=True,
+                             index_col='date', usecols=['date', 'close'], dayfirst=True)
         eth_df = eth_df.rename(columns={'close': 'eth_close'})
         eth_df = eth_df.sort_index(ascending=True)
         
