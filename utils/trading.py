@@ -202,7 +202,7 @@ def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, filename='pnl_series
             print(f"step {i+1} / {n_hours}")
 
     # Close the final positions at the end of the trading period
-    portfolio.close_positions(btc_close, eth_close, date)
+    portfolio.close_positions(date)
 
     # Save result and log the hit ratio
     pnl_dict = portfolio.get_pnl_dict()
@@ -252,7 +252,7 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, filename='pnl_series
         forecasts[i] = forecast
         # Close previous positions and enter new ones if it is the opposite / new signal
         if action is not None and action != last_action:
-            portfolio.close_positions()
+            portfolio.close_positions(date)
             side_btc = 'BUY' if action == 'LONG' else 'SELL'
             side_eth = 'BUY' if action == 'SHORT' else 'SELL'
             portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
@@ -271,7 +271,7 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, filename='pnl_series
             print(f"step {i+1} / {n_hours}")
 
     # Close the final positions at the end of the trading period
-    portfolio.close_positions(btc_close, eth_close, date)
+    portfolio.close_positions(date)
 
     # Save result and log hit ratio
     pnl_dict = portfolio.get_pnl_dict()
@@ -320,7 +320,7 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, filename='pnl_series
         forecasts[i] = forecast
         # Close positions if the spread returned to the mean
         if z_score < 0.5:
-            portfolio.close_positions()
+            portfolio.close_positions(date)
         # Pass an order if there is a trade signal and we don't have any position
         if action is not None and not portfolio.hold_positions:
             side_btc = 'BUY' if action == 'LONG' else 'SELL'
@@ -341,7 +341,7 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, filename='pnl_series
             print(f"step {i+1} / {n_hours}")
 
     # Close the final positions at the end of the trading period
-    portfolio.close_positions(btc_close, eth_close, date)
+    portfolio.close_positions(date)
 
     # Save result and log hit ratio
     pnl_dict = portfolio.get_pnl_dict()
