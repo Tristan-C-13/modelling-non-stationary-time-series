@@ -159,9 +159,9 @@ if __name__ == '__main__':
     T = 10_000  # length of each time series
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    n_simulations = 2000
-    # start, end = get_dates_str(n_simulations + T, '2022-08-14')
-    start, end = get_dates_str(n_simulations + T, '2021-12-31')
+    n_simulations = 500
+    # start, end = get_dates_str(n_simulations + T - 1, '2022-08-14')
+    start, end = get_dates_str(n_simulations + T - 1, '2021-12-31')
     data_df = load_spread_btc_eth(start, end)
     time_series = data_df['spread_log_returns'].to_numpy()
     spread_time_series = data_df['spread'].to_numpy()
@@ -173,20 +173,17 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    launch_trading_simulation1(data_df, T, p, k, 1, 'pnl_series_strat1-end2021.csv')
-    launch_trading_simulation2(data_df, T, p, k, 1, 'pnl_series_strat2-end2021.csv')
-    launch_trading_simulation3(data_df, T, p, k, 1, 0.5, 'pnl_series_strat3-end2021.csv')
+    portfolio_1, ratio_1 = launch_trading_simulation1(data_df, T, p, k, 1, 'strat1-1000.csv')
+    portfolio_2, ratio_2 = launch_trading_simulation2(data_df, T, p, k, 1, 'strat2-1000.csv')
+    portfolio_3, ratio_3 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, 'strat3-1000.csv')
 
-    pnl_series_1 = pd.read_csv('data/pnl_simulations/pnl_series_strat1-end2021.csv', index_col='datetime')
-    pnl_series_2 = pd.read_csv('data/pnl_simulations/pnl_series_strat2-end2021.csv', index_col='datetime')
-    pnl_series_3 = pd.read_csv('data/pnl_simulations/pnl_series_strat3-end2021.csv', index_col='datetime')
+    history_1 = pd.read_csv('data/trading_simulations/strat1-1000.csv', index_col='datetime')
+    history_2 = pd.read_csv('data/trading_simulations/strat2-1000.csv', index_col='datetime')
+    history_3 = pd.read_csv('data/trading_simulations/strat3-1000.csv', index_col='datetime')
 
     fig, axs = plt.subplots(3, 1)
-    axs[0].plot(pnl_series_1.to_numpy())
-    axs[0].set_title("Strategy 1")
-    axs[1].plot(pnl_series_2.to_numpy())
-    axs[1].set_title("Strategy 2")
-    axs[2].plot(pnl_series_3.to_numpy())
-    axs[2].set_title("Strategy 3")
+    portfolio_1.plot_pnl_entries(axs[0])
+    portfolio_2.plot_pnl_entries(axs[1])
+    portfolio_3.plot_pnl_entries(axs[2])
 
     plt.show()

@@ -9,13 +9,24 @@ from .kernels import Kernel
 from .interpolation import extrapolate_parameters
 
 class Portfolio:
-    def __init__(self, start_date) -> None:
+    def __init__(self, start_date, end_date) -> None:
         self.positions = {'BTC-USD': 0, 'ETH-USD': 0}  
         self.cash = 0     # initial cash
         self.crypto = 0   # no initial position
         self.pnl = self.cash + self.crypto
-        self.pnl_dict = {start_date: self.pnl}
-        self.actions_dict = dict() 
+        # History 
+        index = pd.date_range(start=start_date, end=end_date, freq='1H')
+        self.history = pd.DataFrame(
+            index=index,
+            data={
+                'pnl': np.nan,
+                'trade_actions': [[] for _ in range(len(index))],
+                'forecast': np.nan,
+                'true_value': np.nan, # to be initialized by hand
+                'z_score': np.nan
+            }
+        )
+        # self.history.at[start_date, 'pnl'] = self.pnl
 
     def insert_order(self, instrument_id: str, side: str, price: float, volume: float) -> None:
         assert side in ['BUY', 'SELL']
@@ -23,6 +34,7 @@ class Portfolio:
         self.positions[instrument_id] += sign * volume
         self.cash -= sign * volume * price
         self.crypto += sign * volume * price
+        self.update_pnl()
 
     def close_positions(self, date: str) -> None:
         if self.hold_positions:
@@ -36,37 +48,39 @@ class Portfolio:
 
     def update_crypto(self, btc_close: float, eth_close: float) -> None:
         self.crypto = self.get_positions_value(btc_close, eth_close)
+        self.update_pnl()
 
     def update_pnl(self) -> None:
         self.pnl = self.crypto + self.cash
 
-    def get_pnl_dict(self) -> dict:
-        return self.pnl_dict
+    def update_history(self, date: str, action: str, forecast: float, z_score: float) -> None:
+        self.history.at[date, 'pnl'] = self.pnl
+        if action is not None:
+            self.history.at[date, 'trade_actions'].append(action)
+        self.history.at[date, 'forecast'] = forecast
+        self.history.at[date, 'z_score'] = z_score
 
     def add_action(self, date: str, action: str) -> None:
-        if date in self.actions_dict.keys():
-            self.actions_dict[date].append(action)
-        else:
-            self.actions_dict[date] = [action]
+        self.history.at[date, 'trade_actions'].append(action)
 
     @property
     def hold_positions(self):
         return any(self.positions.values())
 
     def plot_pnl_entries(self, ax):
-        pnl_series = pd.Series(self.get_pnl_dict()).to_numpy()
+        pnl_series = self.history['pnl'].to_numpy()
         min_ = pnl_series.min()
         max_ = pnl_series.max()
         marker_ = {'LONG': 'v', 'SHORT': '^'}
         color_ = {'LONG': 'black', 'SHORT': 'green'}
         ax.plot(pnl_series, label='P&L')
 
-        for i, action in enumerate(self.actions_dict.values()):
-            if action != [None]:
+        for i, action in enumerate(self.history['trade_actions'].to_numpy()):
+            if action:
                 for a in action:
                     if a in ['SHORT', 'LONG']:
                         ax.scatter(i, min_, marker=marker_[a], color=color_[a])
-                    elif a == 'CLOSE':
+                    else:
                         ax.scatter(i, max_, marker='x', color='red')
 
         ax.legend();
@@ -166,7 +180,7 @@ def hit_ratio(time_series_spread_log_returns, forecasts, actions):
 ########################
 # BACKTESTS / STRATEGIES    
 ########################
-def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='pnl_series_strat1.csv'):
+def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat1.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_threshold and unwind it the next hour.
@@ -185,11 +199,11 @@ def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
     start = data_df.index[T]
     end = data_df.index[-1]
     logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
-    forecasts = np.empty((n_hours,))
     entry_actions = np.empty((n_hours,), dtype=object)
 
     # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(start)
+    portfolio = Portfolio(start, end)
+    portfolio.history['true_value'] = data_df['spread_log_returns'].iloc[-n_hours:]
 
     for i in range(n_hours):
         date = data_df.index[T+i]
@@ -204,18 +218,15 @@ def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
         # Forecast and get trade signal
         forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, entry_threshold)
-        forecasts[i] = forecast
-        entry_actions[i] = action
         # Pass an order if there is a trade signal
         if action is not None:
             side_btc = 'BUY' if action == 'LONG' else 'SELL'
             side_eth = 'BUY' if action == 'SHORT' else 'SELL'
             portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
             portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-        # Update P&L and save it 
-        portfolio.update_pnl()
-        portfolio.pnl_dict[date] = portfolio.pnl
-        portfolio.add_action(date, action)
+            entry_actions[i] = action
+        # Update history 
+        portfolio.update_history(date, action, forecast, z_score)
     
         # Verbose
         if (i+1) % 100 == 0:
@@ -226,15 +237,13 @@ def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
 
     # Save result and log the hit ratio
     if filename is not None:
-        pnl_dict = portfolio.get_pnl_dict()
-        pnl_series = pd.Series(pnl_dict)
-        pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
-    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), forecasts, entry_actions)
+        portfolio.history.to_csv(f'./data/trading_simulations/{filename}', index_label='datetime')
+    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
     logging.info(f"Ratios: {hit_ratio_}")
-    return portfolio, hit_ratio_, forecasts
+    return portfolio, hit_ratio_
 
 
-def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='pnl_series_strat2.csv'):
+def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat2.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_treshold and unwind it when the opposite signal comes.
@@ -253,12 +262,12 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
     start = data_df.index[T]
     end = data_df.index[-1]
     logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
-    forecasts = np.empty((n_hours,))
     entry_actions = np.empty((n_hours,), dtype=object)
     last_action = None
 
     # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(start)
+    portfolio = Portfolio(start, end)
+    portfolio.history['true_value'] = data_df['spread_log_returns'].iloc[-n_hours:]
 
     for i in range(n_hours):
         date = data_df.index[T+i]
@@ -271,7 +280,6 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
         # Forecast and get trade signal
         forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, entry_threshold)
-        forecasts[i] = forecast
         # Close previous positions and enter new ones if it is the opposite / new signal
         if action is not None and action != last_action:
             portfolio.close_positions(date)
@@ -279,14 +287,10 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
             side_eth = 'BUY' if action == 'SHORT' else 'SELL'
             portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
             portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-            last_action = action
             entry_actions[i] = action
-        else:
-            action = None
-        # Update P&L and save it 
-        portfolio.update_pnl()
-        portfolio.pnl_dict[date] = portfolio.pnl
-        portfolio.add_action(date, action)
+            last_action = action
+        # Update history
+        portfolio.update_history(date, entry_actions[i], forecast, z_score)
 
         # Verbose
         if (i+1) % 100 == 0:
@@ -297,15 +301,13 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
 
     # Save result and log hit ratio
     if filename is not None:
-        pnl_dict = portfolio.get_pnl_dict()
-        pnl_series = pd.Series(pnl_dict)
-        pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
-    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), forecasts, entry_actions)
+        portfolio.history.to_csv(f'./data/trading_simulations/{filename}', index_label='datetime')
+    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
     logging.info(f"Ratios: {hit_ratio_}")
-    return portfolio, hit_ratio_, forecasts
+    return portfolio, hit_ratio_
 
 
-def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.5, filename='pnl_series_strat3.csv'):
+def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.5, filename='strat3.csv'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_threshold 
@@ -326,11 +328,11 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
     start = data_df.index[T]
     end = data_df.index[-1]
     logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
-    forecasts = np.empty((n_hours,))
     entry_actions = np.empty((n_hours,), dtype=object)
 
     # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(start)
+    portfolio = Portfolio(start, end)
+    portfolio.history['true_value'] = data_df['spread_log_returns'].iloc[-n_hours:]
 
     for i in range(n_hours):
         date = data_df.index[T+i]
@@ -343,7 +345,6 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
         # Forecast and get trade signal
         forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, entry_threshold)
-        forecasts[i] = forecast
         # Close positions if the spread returned to the mean
         if z_score < exit_threshold:
             portfolio.close_positions(date)
@@ -353,14 +354,9 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
             side_eth = 'BUY' if action == 'SHORT' else 'SELL'
             portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
             portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-            portfolio.last_action = action
             entry_actions[i] = action
-        else:
-            action = None
-        # Update P&L and save it 
-        portfolio.update_pnl()
-        portfolio.pnl_dict[date] = portfolio.pnl
-        portfolio.add_action(date, action)
+        # Update history
+        portfolio.update_history(date, entry_actions[i], forecast, z_score)
 
         # Verbose
         if (i+1) % 100 == 0:
@@ -371,9 +367,7 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
 
     # Save result and log hit ratio
     if filename is not None:
-        pnl_dict = portfolio.get_pnl_dict()
-        pnl_series = pd.Series(pnl_dict)
-        pnl_series.to_csv(f'./data/pnl_simulations/{filename}', index_label='datetime')
-    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), forecasts, entry_actions)
+        portfolio.history.to_csv(f'./data/trading_simulations/{filename}', index_label='datetime')
+    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
     logging.info(f"Ratios: {hit_ratio_}")
-    return portfolio, hit_ratio_, forecasts
+    return portfolio, hit_ratio_
