@@ -174,9 +174,9 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    portfolio_1 = launch_trading_simulation1(data_df, T, p, k, 1, 'strat1-1000')
-    portfolio_2 = launch_trading_simulation2(data_df, T, p, k, 1, 'strat2-1000')
-    portfolio_3 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, 'strat3-1000')
+    # portfolio_1 = launch_trading_simulation1(data_df, T, p, k, 1, 'strat1-1000')
+    # portfolio_2 = launch_trading_simulation2(data_df, T, p, k, 1, 'strat2-1000')
+    # portfolio_3 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, 'strat3-1000')
 
     with (
         open('data/trading_simulations/strat1-1000.pickle', 'rb') as f1,
