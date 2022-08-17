@@ -69,7 +69,7 @@ def load_spread_btc_eth(start: str = None, end: str = None) -> pd.DataFrame:
     """
     # Load csv if it already exists:
     if os.path.exists('data/data-binance.csv'):
-        data_df = pd.read_csv('data/data-binance.csv', parse_dates=True, index_col='date')
+        data_df = pd.read_csv('data/data-binance.csv', parse_dates=True, dayfirst=False, index_col='date')
     else:
         # Load historical data
         btc_df = pd.read_csv('data/Binance_BTCUSDT_1h.csv', sep=';', parse_dates=True,

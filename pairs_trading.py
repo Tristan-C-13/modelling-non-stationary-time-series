@@ -173,9 +173,9 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    launch_trading_simulation1(data_df, T, p, k, 'pnl_series_strat1-end2021.csv')
-    launch_trading_simulation2(data_df, T, p, k, 'pnl_series_strat2-end2021.csv')
-    launch_trading_simulation3(data_df, T, p, k, 'pnl_series_strat3-end2021.csv')
+    launch_trading_simulation1(data_df, T, p, k, 1, 'pnl_series_strat1-end2021.csv')
+    launch_trading_simulation2(data_df, T, p, k, 1, 'pnl_series_strat2-end2021.csv')
+    launch_trading_simulation3(data_df, T, p, k, 1, 0.5, 'pnl_series_strat3-end2021.csv')
 
     pnl_series_1 = pd.read_csv('data/pnl_simulations/pnl_series_strat1-end2021.csv', index_col='datetime')
     pnl_series_2 = pd.read_csv('data/pnl_simulations/pnl_series_strat2-end2021.csv', index_col='datetime')
