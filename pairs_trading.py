@@ -1,14 +1,15 @@
 import numpy as np
 import pandas as pd
 import scipy
+import pickle
+
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-import datetime as dt
 from statsmodels.tsa.stattools import pacf
 from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
-from utils.data_processing import get_dates_str, download_and_prepare_data, load_spread_btc_eth
+from utils.data_processing import get_dates_str, load_spread_btc_eth
 from utils.kernels import Kernel
 from utils.estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p 
 from utils.interpolation import interpolate_and_extrapolate, plot_interpolation, extrapolate_parameters
@@ -173,13 +174,18 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    portfolio_1, ratio_1 = launch_trading_simulation1(data_df, T, p, k, 1, 'strat1-1000.csv')
-    portfolio_2, ratio_2 = launch_trading_simulation2(data_df, T, p, k, 1, 'strat2-1000.csv')
-    portfolio_3, ratio_3 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, 'strat3-1000.csv')
+    portfolio_1 = launch_trading_simulation1(data_df, T, p, k, 1, 'strat1-1000')
+    portfolio_2 = launch_trading_simulation2(data_df, T, p, k, 1, 'strat2-1000')
+    portfolio_3 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, 'strat3-1000')
 
-    history_1 = pd.read_csv('data/trading_simulations/strat1-1000.csv', index_col='datetime')
-    history_2 = pd.read_csv('data/trading_simulations/strat2-1000.csv', index_col='datetime')
-    history_3 = pd.read_csv('data/trading_simulations/strat3-1000.csv', index_col='datetime')
+    with (
+        open('data/trading_simulations/strat1-1000.pickle', 'rb') as f1,
+        open('data/trading_simulations/strat2-1000.pickle', 'rb') as f2,
+        open('data/trading_simulations/strat3-1000.pickle', 'rb') as f3,
+    ):
+        portfolio_1 = pickle.load(f1)
+        portfolio_2 = pickle.load(f2)
+        portfolio_3 = pickle.load(f3)
 
     fig, axs = plt.subplots(3, 1)
     portfolio_1.plot_pnl_entries(axs[0])

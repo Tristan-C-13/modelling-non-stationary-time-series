@@ -1,8 +1,8 @@
 import numpy as np
 import pandas as pd
-import matplotlib.pyplot as plt
 
 import logging
+import pickle
 
 from .estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
 from .kernels import Kernel
@@ -180,7 +180,7 @@ def hit_ratio(time_series_spread_log_returns, forecasts, actions):
 ########################
 # BACKTESTS / STRATEGIES    
 ########################
-def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat1.csv'):
+def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat1'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_threshold and unwind it the next hour.
@@ -235,15 +235,20 @@ def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
     # Close the final positions at the end of the trading period
     portfolio.close_positions(date)
 
-    # Save result and log the hit ratio
-    if filename is not None:
-        portfolio.history.to_csv(f'./data/trading_simulations/{filename}', index_label='datetime')
+    # Compute hit ratio
     hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
+    portfolio.hit_ratio = hit_ratio_
     logging.info(f"Ratios: {hit_ratio_}")
-    return portfolio, hit_ratio_
+
+    # Save results
+    if filename is not None:
+        with open(f'./data/trading_simulations/{filename}.pickle', 'wb') as f:
+            pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
+
+    return portfolio
 
 
-def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat2.csv'):
+def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat2'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_treshold and unwind it when the opposite signal comes.
@@ -299,15 +304,20 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
     # Close the final positions at the end of the trading period
     portfolio.close_positions(date)
 
-    # Save result and log hit ratio
-    if filename is not None:
-        portfolio.history.to_csv(f'./data/trading_simulations/{filename}', index_label='datetime')
+    # Compute hit ratio
     hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
+    portfolio.hit_ratio = hit_ratio_
     logging.info(f"Ratios: {hit_ratio_}")
-    return portfolio, hit_ratio_
+
+    # Save results
+    if filename is not None:
+        with open(f'./data/trading_simulations/{filename}.pickle', 'wb') as f:
+            pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
+    
+    return portfolio
 
 
-def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.5, filename='strat3.csv'):
+def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.5, filename='strat3'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_threshold 
@@ -365,9 +375,13 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
     # Close the final positions at the end of the trading period
     portfolio.close_positions(date)
 
-    # Save result and log hit ratio
-    if filename is not None:
-        portfolio.history.to_csv(f'./data/trading_simulations/{filename}', index_label='datetime')
+    # Compute hit ratio
     hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
+    portfolio.hit_ratio = hit_ratio_
     logging.info(f"Ratios: {hit_ratio_}")
-    return portfolio, hit_ratio_
+
+    # Save results
+    if filename is not None:
+        with open(f'./data/trading_simulations/{filename}.pickle', 'wb') as f:
+            pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
+    return portfolio
