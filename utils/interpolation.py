@@ -43,18 +43,6 @@ def extrapolate_parameters(alpha, sigma, num_points=10, interpol_step=1, n_forec
     return alpha_extrapolated, sigma_extrapolated
 
 
-def plot_interpolation(y, y_interpolation, ax, num_points=10, interpol_step=0.1, n_forecasts=1):
-    """
-    Plots the interpolation of the time series y and the true series on the same graph.
-    """
-    x = np.linspace(0, len(y)-1, num=len(y))
-    ax.scatter(x, y, label='true points')
-
-    x_interpolation = np.arange(x[int(len(y) - (n_forecasts + num_points)) + 1], x[-1] + n_forecasts + interpol_step, step=interpol_step)
-    ax.plot(x_interpolation, y_interpolation, color='red', linestyle='--', label='spline interpolation')
-    ax.legend()
-
-
 def select_interpolation_order(y):
     r2_dict = dict()
     test_mask = np.random.choice([False, True], size=(y.shape[0],), p=[0.9, 0.1])
