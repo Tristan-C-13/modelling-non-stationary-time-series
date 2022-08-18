@@ -26,7 +26,6 @@ class Portfolio:
                 'z_score': np.nan
             }
         )
-        # self.history.at[start_date, 'pnl'] = self.pnl
 
     def insert_order(self, instrument_id: str, side: str, price: float, volume: float) -> None:
         assert side in ['BUY', 'SELL']
@@ -67,7 +66,20 @@ class Portfolio:
     def hold_positions(self):
         return any(self.positions.values())
 
-    def plot_pnl_entries(self, ax):
+    @property
+    def holding_position(self):
+        if not self.hold_positions:
+            return None
+        else:
+            if self.positions['BTC-USD'] < 0 and self.positions['ETH-USD'] > 0:
+                return 'SHORT'
+            elif self.positions['BTC-USD'] > 0 and self.positions['ETH-USD'] < 0:
+                return 'LONG'
+            else:
+                return None
+            
+
+    def plot_pnl_entries(self, ax, show_actions=True):
         pnl_series = self.history['pnl'].to_numpy()
         min_ = pnl_series.min()
         max_ = pnl_series.max()
@@ -75,13 +87,14 @@ class Portfolio:
         color_ = {'LONG': 'black', 'SHORT': 'green'}
         ax.plot(pnl_series, label='P&L')
 
-        for i, action in enumerate(self.history['trade_actions'].to_numpy()):
-            if action:
-                for a in action:
-                    if a in ['SHORT', 'LONG']:
-                        ax.scatter(i, min_, marker=marker_[a], color=color_[a])
-                    else:
-                        ax.scatter(i, max_, marker='x', color='red')
+        if show_actions:
+            for i, action in enumerate(self.history['trade_actions'].to_numpy()):
+                if action:
+                    for a in action:
+                        if a in ['SHORT', 'LONG']:
+                            ax.scatter(i, min_, marker=marker_[a], color=color_[a])
+                        else:
+                            ax.scatter(i, max_, marker='x', color='red')
 
         ax.legend();
 
@@ -130,6 +143,24 @@ def check_entry_trade(z: float, threshold: float):
         return 'SHORT'  # sell A, buy B
     elif z < -threshold:
         return 'LONG'   # buy A, sell B
+    else:
+        return None
+
+
+def check_exit_trade(z: float, holding_position: str, threshold: float):
+    """
+    Determine the exit trade action. It is one of two possibilities:
+    * 'CLOSE': close position
+    * None: no signal found, hold the position
+
+    --- parameters
+    - z: value of the z-score
+    - holding_position: 'SHORT', 'LONG' or None
+    - threshold: threshold to exit a trade
+    """
+    assert holding_position in [None, 'SHORT', 'LONG']
+    if (holding_position == 'SHORT' and z < -threshold) or (holding_position == 'LONG' and z > threshold):
+        return 'CLOSE'
     else:
         return None
 
@@ -317,7 +348,7 @@ def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, f
     return portfolio
 
 
-def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.5, filename='strat3'):
+def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.25, filename='strat3'):
     """
     Trading simulations on n_hours. 
     Enter a position if abs(z_score) > entry_threshold 
@@ -356,7 +387,8 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
         forecast, z_score = get_forecast_zscore(time_series_i, p, k)
         action = check_entry_trade(z_score, entry_threshold)
         # Close positions if the spread returned to the mean
-        if z_score < exit_threshold:
+        exit_action = check_exit_trade(z_score, portfolio.holding_position, exit_threshold)
+        if exit_action == 'CLOSE':
             portfolio.close_positions(date)
         # Pass an order if there is a trade signal and we don't have any position
         if action is not None and not portfolio.hold_positions:

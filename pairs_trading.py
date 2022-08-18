@@ -160,9 +160,8 @@ if __name__ == '__main__':
     T = 10_000  # length of each time series
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    n_simulations = 500
-    # start, end = get_dates_str(n_simulations + T - 1, '2022-08-14')
-    start, end = get_dates_str(n_simulations + T - 1, '2021-12-31')
+    n_simulations = 5000
+    start, end = get_dates_str(n_simulations + T - 1, '2022-08-14')
     data_df = load_spread_btc_eth(start, end)
     time_series = data_df['spread_log_returns'].to_numpy()
     spread_time_series = data_df['spread'].to_numpy()
@@ -178,18 +177,31 @@ if __name__ == '__main__':
     # portfolio_2 = launch_trading_simulation2(data_df, T, p, k, 1, 'strat2-1000')
     # portfolio_3 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, 'strat3-1000')
 
-    with (
-        open('data/trading_simulations/strat1-1000.pickle', 'rb') as f1,
-        open('data/trading_simulations/strat2-1000.pickle', 'rb') as f2,
-        open('data/trading_simulations/strat3-1000.pickle', 'rb') as f3,
-    ):
-        portfolio_1 = pickle.load(f1)
-        portfolio_2 = pickle.load(f2)
-        portfolio_3 = pickle.load(f3)
+    # with (
+    #     open('data/trading_simulations/strat1-1000.pickle', 'rb') as f1,
+    #     open('data/trading_simulations/strat2-1000.pickle', 'rb') as f2,
+    #     open('data/trading_simulations/strat3-1000.pickle', 'rb') as f3,
+    # ):
+    #     portfolio_1 = pickle.load(f1)
+    #     portfolio_2 = pickle.load(f2)
+    #     portfolio_3 = pickle.load(f3)
 
-    fig, axs = plt.subplots(3, 1)
-    portfolio_1.plot_pnl_entries(axs[0])
-    portfolio_2.plot_pnl_entries(axs[1])
-    portfolio_3.plot_pnl_entries(axs[2])
+    # fig, axs = plt.subplots(3, 1)
+    # portfolio_1.plot_pnl_entries(axs[0])
+    # portfolio_2.plot_pnl_entries(axs[1])
+    # portfolio_3.plot_pnl_entries(axs[2])
 
+    portfolio_3_z1 = launch_trading_simulation3(data_df, T, p, k, 1, 0.25, f'strat3_n={n_simulations}_z1')
+    fig, ax = plt.subplots(figsize=(14, 6))
+    portfolio_3_z1.plot_pnl_entries(ax)
+
+    # fig, axs = plt.subplots(3, 3)
+    # for i in range(1, 4):
+    #     for z in range(3):
+    #         with open(f'data/trading_simulations/strat{i}_n=5000_z{z}.pickle', 'rb') as f:
+    #             portfolio = pickle.load(f)
+    #         portfolio.plot_pnl_entries(axs[i-1, z], z != 0)
+    #         print(f"Strategy {i}, {z=}, hit_ratio: {portfolio.hit_ratio}")
+    #         axs[i-1, z].set_title(f"Strategy {i}, {z=}")
+        
     plt.show()
