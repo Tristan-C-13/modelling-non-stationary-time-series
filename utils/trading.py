@@ -1,14 +1,19 @@
+from xmlrpc.client import Boolean
 import numpy as np
 import pandas as pd
 
 import logging
 import pickle
+from abc import ABC, abstractclassmethod
+from dataclasses import dataclass
 
 from .estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
 from .kernels import Kernel
 from .interpolation import extrapolate_parameters
 
 class Portfolio:
+    """Object saving all data from a trading simulation and used to pass orders."""
+
     def __init__(self, start_date, end_date) -> None:
         self.positions = {'BTC-USD': 0, 'ETH-USD': 0}  
         self.cash = 0     # initial cash
@@ -77,7 +82,7 @@ class Portfolio:
                 return 'LONG'
             else:
                 return None
-            
+
 
     def plot_pnl_entries(self, ax, show_actions=True):
         pnl_series = self.history['pnl'].to_numpy()
@@ -211,149 +216,11 @@ def hit_ratio(time_series_spread_log_returns, forecasts, actions):
 ########################
 # BACKTESTS / STRATEGIES    
 ########################
-def launch_trading_simulation1(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat1'):
+@dataclass
+class TradingStrategy(ABC):
     """
-    Trading simulations on n_hours. 
-    Enter a position if abs(z_score) > entry_threshold and unwind it the next hour.
-
-    --- parameters
-    - data_df: dataframe with the data
-    - T: length of each time series for fitting the model
-    - p: Order of the tvAR(p) model
-    - k: Order of the spline interpolation
-    - entry_threshold: threshold to enter a trade
-    - filename: name of the csv file where the time series of the P&L is saved
-    """
-    # Data & Spread: BTC-USD / ETH-USD
-    assert data_df.shape[0] > T, f"The time series needs to have at least {T} rows."
-    n_hours = data_df.shape[0] - T # number of hours of simulation
-    start = data_df.index[T]
-    end = data_df.index[-1]
-    logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
-    entry_actions = np.empty((n_hours,), dtype=object)
-
-    # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(start, end)
-    portfolio.history['true_value'] = data_df['spread_log_returns'].iloc[-n_hours:]
-
-    for i in range(n_hours):
-        date = data_df.index[T+i]
-        time_series_i = data_df.loc[data_df.index[i : T+i], 'spread_log_returns'].to_numpy()
-        btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
-        eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
-
-        # Update crypto value
-        portfolio.update_crypto(btc_close, eth_close)
-        # Close previous positions
-        portfolio.close_positions(date)
-        # Forecast and get trade signal
-        forecast, z_score = get_forecast_zscore(time_series_i, p, k)
-        action = check_entry_trade(z_score, entry_threshold)
-        # Pass an order if there is a trade signal
-        if action is not None:
-            side_btc = 'BUY' if action == 'LONG' else 'SELL'
-            side_eth = 'BUY' if action == 'SHORT' else 'SELL'
-            portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
-            portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-            entry_actions[i] = action
-        # Update history 
-        portfolio.update_history(date, action, forecast, z_score)
+    Generic class containing the logic of a trading strategy.
     
-        # Verbose
-        if (i+1) % 100 == 0:
-            print(f"step {i+1} / {n_hours}")
-
-    # Close the final positions at the end of the trading period
-    portfolio.close_positions(date)
-
-    # Compute hit ratio
-    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
-    portfolio.hit_ratio = hit_ratio_
-    logging.info(f"Ratios: {hit_ratio_}")
-
-    # Save results
-    if filename is not None:
-        with open(f'./data/trading_simulations/{filename}.pickle', 'wb') as f:
-            pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
-
-    return portfolio
-
-
-def launch_trading_simulation2(data_df, T=10_000, p=1, k=3, entry_threshold=1, filename='strat2'):
-    """
-    Trading simulations on n_hours. 
-    Enter a position if abs(z_score) > entry_treshold and unwind it when the opposite signal comes.
-
-    --- parameters
-    - data_df: dataframe with the data
-    - T: length of each time series for fitting the model
-    - p: Order of the tvAR(p) model
-    - k: Order of the spline interpolation
-    - entry_threshold: threshold to enter a trade
-    - filename: name of the csv file where the time series of the P&L is saved
-    """
-    # Data & Spread: BTC-USD / ETH-USD
-    assert data_df.shape[0] > T, f"The time series needs to have at least {T} rows."
-    n_hours = data_df.shape[0] - T # number of hours of simulation
-    start = data_df.index[T]
-    end = data_df.index[-1]
-    logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
-    entry_actions = np.empty((n_hours,), dtype=object)
-    last_action = None
-
-    # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(start, end)
-    portfolio.history['true_value'] = data_df['spread_log_returns'].iloc[-n_hours:]
-
-    for i in range(n_hours):
-        date = data_df.index[T+i]
-        time_series_i = data_df.loc[data_df.index[i : T+i], 'spread_log_returns'].to_numpy()
-        btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
-        eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
-
-        # Update crypto value
-        portfolio.update_crypto(btc_close, eth_close)
-        # Forecast and get trade signal
-        forecast, z_score = get_forecast_zscore(time_series_i, p, k)
-        action = check_entry_trade(z_score, entry_threshold)
-        # Close previous positions and enter new ones if it is the opposite / new signal
-        if action is not None and action != last_action:
-            portfolio.close_positions(date)
-            side_btc = 'BUY' if action == 'LONG' else 'SELL'
-            side_eth = 'BUY' if action == 'SHORT' else 'SELL'
-            portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
-            portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-            entry_actions[i] = action
-            last_action = action
-        # Update history
-        portfolio.update_history(date, entry_actions[i], forecast, z_score)
-
-        # Verbose
-        if (i+1) % 100 == 0:
-            print(f"step {i+1} / {n_hours}")
-
-    # Close the final positions at the end of the trading period
-    portfolio.close_positions(date)
-
-    # Compute hit ratio
-    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
-    portfolio.hit_ratio = hit_ratio_
-    logging.info(f"Ratios: {hit_ratio_}")
-
-    # Save results
-    if filename is not None:
-        with open(f'./data/trading_simulations/{filename}.pickle', 'wb') as f:
-            pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
-    
-    return portfolio
-
-
-def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, exit_threshold=0.25, filename='strat3'):
-    """
-    Trading simulations on n_hours. 
-    Enter a position if abs(z_score) > entry_threshold 
-    and unwind it when the spread returns close to the mean: abs(z_score) < exit_threshold.
-
     --- parameters
     - data_df: dataframe with the data
     - T: length of each time series for fitting the model
@@ -363,57 +230,119 @@ def launch_trading_simulation3(data_df, T=10_000, p=1, k=3, entry_threshold=1, e
     - exit_threshold: threshold to close a position
     - filename: name of the csv file where the time series of the P&L is saved
     """
-    # Data & Spread: BTC-USD / ETH-USD
-    assert data_df.shape[0] > T, f"The time series needs to have at least {T} rows."
-    n_hours = data_df.shape[0] - T # number of hours of simulation
-    start = data_df.index[T]
-    end = data_df.index[-1]
-    logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
-    entry_actions = np.empty((n_hours,), dtype=object)
 
-    # Initialize the portfolio: 0 BTC and 0 ETH
-    portfolio = Portfolio(start, end)
-    portfolio.history['true_value'] = data_df['spread_log_returns'].iloc[-n_hours:]
+    data_df: pd.DataFrame
+    T: int = 10_000
+    p: int = 1
+    k: int = 3
+    entry_threshold: float = 1
+    exit_threshold: float = 0.25
+    filename: str = ""
 
-    for i in range(n_hours):
-        date = data_df.index[T+i]
-        time_series_i = data_df.loc[data_df.index[i : T+i], 'spread_log_returns'].to_numpy()
-        btc_close = data_df.loc[data_df.index[T+i-1], 'btc_close']
-        eth_close = data_df.loc[data_df.index[T+i-1], 'eth_close']
+    @abstractclassmethod
+    def can_enter_trade(self, action: str, portfolio: Portfolio) -> bool:
+        """Checks if all requirements are met to enter a new trade."""
+        pass
 
-        # Update crypto value
-        portfolio.update_crypto(btc_close, eth_close)
-        # Forecast and get trade signal
-        forecast, z_score = get_forecast_zscore(time_series_i, p, k)
-        action = check_entry_trade(z_score, entry_threshold)
-        # Close positions if the spread returned to the mean
-        exit_action = check_exit_trade(z_score, portfolio.holding_position, exit_threshold)
-        if exit_action == 'CLOSE':
-            portfolio.close_positions(date)
-        # Pass an order if there is a trade signal and we don't have any position
-        if action is not None and not portfolio.hold_positions:
-            side_btc = 'BUY' if action == 'LONG' else 'SELL'
-            side_eth = 'BUY' if action == 'SHORT' else 'SELL'
-            portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
-            portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
-            entry_actions[i] = action
-        # Update history
-        portfolio.update_history(date, entry_actions[i], forecast, z_score)
+    @abstractclassmethod
+    def can_exit_trade(self, z_score: float, action: str, portfolio: Portfolio) -> bool:
+        """Checks if all requirements are met to close current positions."""
+        pass
 
-        # Verbose
-        if (i+1) % 100 == 0:
-            print(f"step {i+1} / {n_hours}")
+    def simulate_trading(self) -> Portfolio:
+        # Data & Spread: BTC-USD / ETH-USD
+        assert self.data_df.shape[0] > self.T, f"The time series needs to have at least {self.T} rows."
+        n_hours = self.data_df.shape[0] - self.T # number of hours of simulation
+        start = self.data_df.index[self.T]
+        end = self.data_df.index[-1]
+        logging.info(f"Simulation launched from {start} to {end} ({n_hours} hours)")
+        entry_actions = np.empty((n_hours,), dtype=object)
 
-    # Close the final positions at the end of the trading period
-    portfolio.close_positions(date)
+        # Initialize the portfolio: 0 BTC and 0 ETH
+        portfolio = Portfolio(start, end)
+        portfolio.history['true_value'] = self.data_df['spread_log_returns'].iloc[-n_hours:]
 
-    # Compute hit ratio
-    hit_ratio_ = hit_ratio(data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
-    portfolio.hit_ratio = hit_ratio_
-    logging.info(f"Ratios: {hit_ratio_}")
+        for i in range(n_hours):
+            date = self.data_df.index[self.T+i]
+            time_series_i = self.data_df.loc[self.data_df.index[i : self.T+i], 'spread_log_returns'].to_numpy()
+            btc_close = self.data_df.loc[self.data_df.index[self.T+i-1], 'btc_close']
+            eth_close = self.data_df.loc[self.data_df.index[self.T+i-1], 'eth_close']
 
-    # Save results
-    if filename is not None:
-        with open(f'./data/trading_simulations/{filename}.pickle', 'wb') as f:
-            pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
-    return portfolio
+            # Update crypto value
+            portfolio.update_crypto(btc_close, eth_close)
+            # Get entry trade signal
+            forecast, z_score = get_forecast_zscore(time_series_i, self.p, self.k)
+            action = check_entry_trade(z_score, self.entry_threshold)
+            # Close previous positions
+            if self.can_exit_trade(z_score, action, portfolio):
+                portfolio.close_positions(date)
+            # Open new position
+            if self.can_enter_trade(action, portfolio):
+                side_btc = 'BUY' if action == 'LONG' else 'SELL'
+                side_eth = 'BUY' if action == 'SHORT' else 'SELL'
+                portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
+                portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
+                entry_actions[i] = action
+            # Update history 
+            portfolio.update_history(date, action, forecast, z_score)
+            # Verbose
+            if (i+1) % 100 == 0:
+                print(f"step {i+1} / {n_hours}")
+
+        # Close the final positions at the end of the trading period
+        portfolio.close_positions(date)
+
+        # Compute hit ratio
+        hit_ratio_ = hit_ratio(self.data_df['spread_log_returns'].to_numpy(), portfolio.history['forecast'].to_numpy(), entry_actions)
+        portfolio.hit_ratio = hit_ratio_
+        logging.info(f"Ratios: {hit_ratio_}")
+
+        # Save results
+        if self.filename:
+            with open(f'./data/trading_simulations/{self.filename}.pickle', 'wb') as f:
+                pickle.dump(portfolio, f, pickle.HIGHEST_PROTOCOL)
+
+        return portfolio
+
+
+class Strategy1(TradingStrategy):
+    """Enter a position if abs(z_score) > entry_threshold and unwind it the next hour."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def can_enter_trade(self, action: str, portfolio: Portfolio) -> bool:
+        """Enter a trade if a signal is detected and no positions are being held"""
+        return (not portfolio.hold_positions) and (action is not None)
+
+    def can_exit_trade(self, z_score: float, action: str, portfolio: Portfolio) -> bool:
+        """Always close a position at time t+1."""
+        return True
+
+
+class Strategy2(TradingStrategy):
+    """Enter a position if abs(z_score) > entry_threshold and unwind it when the opposite signal comes."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def can_enter_trade(self, action, portfolio):
+        """Enter a trade if a signal is detected and no positions are being held."""
+        return (not portfolio.hold_positions) and (action is not None)
+
+    def can_exit_trade(self, z_score, action, portfolio):
+        """Close positions when the action is the opposite of the last action."""
+        return (action is not None) and (action != portfolio.holding_position)
+
+
+class Strategy3(TradingStrategy):
+    """Enter a position if abs(z_score) > entry_threshold and unwind it when the spread returns close to the mean (or goes beyond in the other direction)."""
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def can_enter_trade(self, action, portfolio):
+        """Enter a trade if a signal is detected and no positions are being held."""
+        return (not portfolio.hold_positions) and (action is not None)
+
+    def can_exit_trade(self, z_score, action, portfolio):
+        """Close positions when the the spread returns close to the mean (or goes beyond in the other direction)."""
+        exit_action = check_exit_trade(z_score, portfolio.holding_position, self.exit_threshold)
+        return exit_action == 'CLOSE'
