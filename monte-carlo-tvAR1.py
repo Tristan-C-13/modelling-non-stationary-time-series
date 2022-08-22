@@ -6,6 +6,18 @@ from utils.estimation import estimate_parameters_tvAR_p
 from utils.simulate import simulate_tvAR_p
 
 
+def compute_mise(alpha_hat, sigma_hat, alpha, sigma, u_list) -> tuple:
+    """Compute the MISE of the estimate."""
+
+    mse_each_alpha = np.mean((alpha_hat - alpha(u_list).reshape((-1, 1))) ** 2, axis=0)
+    mise_alpha = np.mean(mse_each_alpha)
+
+    mse_each_sigma = np.mean((sigma_hat - sigma(u_list).reshape((-1, 1))) ** 2, axis=0)
+    mise_sigma = np.mean(mse_each_sigma)
+
+    return mise_alpha, mise_sigma
+
+
 def make_row_plot(alpha_fun, sigma_fun, alpha_hat, sigma_hat, u_list, subfig, n_realisations):
     axs = subfig.subplots(1, 4)
 
@@ -99,6 +111,10 @@ if __name__ == '__main__':
         yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth)
         alpha_hat = yw_estimates[:, 0, :]
         sigma_hat = yw_estimates[:, 1, :]
+
+        # Compute MISE
+        mise = compute_mise(alpha_hat, sigma_hat, alpha, sigma, u_list)
+        print(f"MISE alpha = {mise[0]}, MISE sigma = {mise[1]}")
 
         # Plot 
         subfigs[i].suptitle(f"{T=}", fontweight="bold")

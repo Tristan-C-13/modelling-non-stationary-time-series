@@ -33,7 +33,7 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    strat1 = Strategy1(data_df, T, p, k, 1, 'strat1-1000')
+    strat1 = Strategy1(data_df, T, p, k, 1, "")
     portfolio_1 = strat1.simulate_trading()
 
     # with (
