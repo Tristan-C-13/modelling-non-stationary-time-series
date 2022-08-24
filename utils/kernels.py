@@ -13,7 +13,7 @@ class Kernel:
             "triangular", 
             "one-sided epanechnikov (R)",
             "one-sided epanechnikov (L)"
-            ]
+            ], f"{kernel_str}"
         self.kernel_str = kernel_str
 
     def __call__(self, x):

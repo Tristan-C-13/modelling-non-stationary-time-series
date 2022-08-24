@@ -85,9 +85,10 @@ if __name__ == '__main__':
 
 
     # Parameters
-    T_list = [100, 1000, 10000]
+    T_list = [100, 1000, 10_000]
     u_list = np.linspace(0, 1, 100, endpoint=False)
     n_realisations = 500
+    reflect_time_series = True
 
 
     fig = plt.figure(constrained_layout=True)
@@ -108,7 +109,7 @@ if __name__ == '__main__':
         # Estimate coefficients
         epsilon = np.random.normal(0, 1, size=(T, n_realisations))
         X = simulate_tvAR_p(1, np.zeros(n_realisations), epsilon, [alpha], sigma)
-        yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth)
+        yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth, reflect_time_series)
         alpha_hat = yw_estimates[:, 0, :]
         sigma_hat = yw_estimates[:, 1, :]
 

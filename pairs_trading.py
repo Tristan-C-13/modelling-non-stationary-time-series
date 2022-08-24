@@ -5,7 +5,7 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from utils.data_processing import get_dates_str, load_spread_btc_eth
+from utils.data_processing import get_dates_str, load_spread_btc_eth, reflect_time_series
 from utils.trading import Strategy1, Strategy2, Strategy3
 from utils.graphics import plot_rolling_entries, plot_rolling_forecasts, make_general_plots
 
@@ -33,8 +33,13 @@ if __name__ == '__main__':
 
     
     # TRADING SIMULATION
-    strat1 = Strategy1(data_df, T, p, k, 1, "")
-    portfolio_1 = strat1.simulate_trading()
+    # strat3 = Strategy3(data_df, T, p, k, 1, 0.25, filename="")
+    # portfolio_3 = strat3.simulate_trading(reflected_time_series=False)
+    # print(portfolio_3.hit_ratio)
+
+    strat3 = Strategy3(data_df, T, p, k, 1, 0.25, filename="")
+    portfolio_3 = strat3.simulate_trading(reflected_time_series=True)
+    print(portfolio_3.hit_ratio)
 
     # with (
     #     open('data/trading_simulations/strat1-1000.pickle', 'rb') as f1,
@@ -59,5 +64,15 @@ if __name__ == '__main__':
     #         print(f"Strategy {i}, {z=}, hit_ratio: {portfolio.hit_ratio}")
     #         axs[i-1, z].set_title(f"Strategy {i}, {z=}")
 
-        
+
+    # TUNING ENTRY THRESHOLD
+    # z_entry_list = np.linspace(1, 2, 5)
+    # for z_entry in z_entry_list:
+    #     p1 = Strategy1(data_df, T, p, k, z_entry, filename="").simulate_trading(verbose=False)
+    #     print(f"1) {z_entry}: {p1.hit_ratio['ratio']}")
+    #     p2 = Strategy2(data_df, T, p, k, z_entry, filename="").simulate_trading(verbose=False)
+    #     print(f"2) {z_entry}: {p2.hit_ratio['ratio']}")
+    #     p3 = Strategy3(data_df, T, p, k, z_entry, 0.25, filename="").simulate_trading(verbose=False)
+    #     print(f"3) {z_entry}: {p3.hit_ratio['ratio']}")
+
     plt.show()

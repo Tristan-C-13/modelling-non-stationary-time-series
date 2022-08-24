@@ -113,13 +113,22 @@ def load_spread_btc_eth(start: str = None, end: str = None) -> pd.DataFrame:
 #######################
 # Reducing edge effects
 #######################
-def reflect_time_series(time_series: np.ndarray, left_point: tuple[float] = None, right_point: tuple[float] = None) -> np.ndarray:
+def reflect_time_series(time_series: np.ndarray, left_point: float = None, right_point: float = None) -> np.ndarray:
+    """
+    Reflects a time series according to the geometrical method described in Peter Hall (1991).
+    """
     new_time_series = time_series.copy()
     if right_point is not None:
-        time_series_right = np.flip(2 * right_point[1] - time_series)
+        time_series_right = np.flip(2 * right_point - time_series)
         new_time_series = np.concatenate([new_time_series, time_series_right])
     if left_point is not None:
-        time_series_left = np.flip(2 * left_point[1] - time_series)
+        time_series_left = np.flip(2 * left_point - time_series)
         new_time_series = np.concatenate([time_series_left, new_time_series])
     return new_time_series
     
+def convert_u_list(u_list: np.ndarray) -> np.ndarray:
+    """
+    Converts u_list which is a partition between 0 and 1 to a partition between 1/3 and 2/3.
+    This function is used after  reflecting the time series.
+    """
+    return (u_list + 1) / 3 

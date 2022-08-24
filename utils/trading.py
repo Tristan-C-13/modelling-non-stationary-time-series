@@ -107,7 +107,7 @@ class Portfolio:
 ##################
 # TRADES / SIGNALS
 ##################
-def get_forecast_zscore(time_series, p=1, k=3, kernel_str="epanechnikov"):
+def get_forecast_zscore(time_series, p=1, k=3, kernel_str="epanechnikov", reflect_time_series=False):
     """
     For a given time series, returns the forecasted value and the associated z-score, used to determine if a trade is entered or not.
 
@@ -118,7 +118,7 @@ def get_forecast_zscore(time_series, p=1, k=3, kernel_str="epanechnikov"):
     T = time_series.shape[0]
     b_T = 0.1 * T ** (-1/5)
 
-    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel(kernel_str), bandwidth=b_T)
+    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel(kernel_str), bandwidth=b_T, reflect_ts=reflect_time_series)
     alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
     sigma_hat = theta_hat[:, -1, :].squeeze()
 
@@ -170,7 +170,7 @@ def check_exit_trade(z: float, holding_position: str, threshold: float):
         return None
 
 
-def get_actions_and_forecasts(time_series, threshold=1, n_forecasts=50, p=1, k=3):
+def get_actions_and_forecasts(time_series, threshold=1, n_forecasts=50, p=1, k=3, reflect_time_series=False):
     """
     Returns a tuple of arrays:
     * actions: whether to enter a traded or not.
@@ -184,7 +184,7 @@ def get_actions_and_forecasts(time_series, threshold=1, n_forecasts=50, p=1, k=3
     z_list = np.empty(n_forecasts)
     forecasts = np.empty(n_forecasts)
     for i, time_series_i in enumerate(windows):
-        forecast, z_score = get_forecast_zscore(time_series_i, p, k)
+        forecast, z_score = get_forecast_zscore(time_series_i, p, k, reflect_time_series=reflect_time_series)
         action = check_entry_trade(z_score, threshold)
         actions[i] = action
         forecasts[i] = forecast
@@ -242,14 +242,14 @@ class TradingStrategy(ABC):
     @abstractclassmethod
     def can_enter_trade(self, action: str, portfolio: Portfolio) -> bool:
         """Checks if all requirements are met to enter a new trade."""
-        pass
+        ...
 
     @abstractclassmethod
     def can_exit_trade(self, z_score: float, action: str, portfolio: Portfolio) -> bool:
         """Checks if all requirements are met to close current positions."""
-        pass
+        ...
 
-    def simulate_trading(self) -> Portfolio:
+    def simulate_trading(self, reflected_time_series=False, verbose=True) -> Portfolio:
         # Data & Spread: BTC-USD / ETH-USD
         assert self.data_df.shape[0] > self.T, f"The time series needs to have at least {self.T} rows."
         n_hours = self.data_df.shape[0] - self.T # number of hours of simulation
@@ -261,6 +261,7 @@ class TradingStrategy(ABC):
         # Initialize the portfolio: 0 BTC and 0 ETH
         portfolio = Portfolio(start, end)
         portfolio.history['true_value'] = self.data_df['spread_log_returns'].iloc[-n_hours:]
+        portfolio.reflected_time_series = reflected_time_series
 
         for i in range(n_hours):
             date = self.data_df.index[self.T+i]
@@ -271,7 +272,7 @@ class TradingStrategy(ABC):
             # Update crypto value
             portfolio.update_crypto(btc_close, eth_close)
             # Get entry trade signal
-            forecast, z_score = get_forecast_zscore(time_series_i, self.p, self.k)
+            forecast, z_score = get_forecast_zscore(time_series_i, self.p, self.k, reflect_time_series=reflected_time_series)
             action = check_entry_trade(z_score, self.entry_threshold)
             # Close previous positions
             if self.can_exit_trade(z_score, action, portfolio):
@@ -286,7 +287,7 @@ class TradingStrategy(ABC):
             # Update history 
             portfolio.update_history(date, action, forecast, z_score)
             # Verbose
-            if (i+1) % 100 == 0:
+            if verbose and (i+1) % 100 == 0:
                 print(f"step {i+1} / {n_hours}")
 
         # Close the final positions at the end of the trading period

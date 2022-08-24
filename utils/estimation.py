@@ -2,6 +2,7 @@ import numpy as np
 import scipy.linalg
 
 from .kernels import Kernel
+from .data_processing import reflect_time_series, convert_u_list
 
 
 def estimate_local_autocovariance(X: np.ndarray, t_0: int, k: int, kernel: Kernel, bandwidth: float) -> np.ndarray:
@@ -62,7 +63,7 @@ def estimate_yw_coef(c_list: np.ndarray) -> np.ndarray:
     return yw_coeff
 
 
-def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarray, kernel: Kernel, bandwidth: float) -> np.ndarray:
+def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarray, kernel: Kernel, bandwidth: float, reflect_ts: bool = False) -> np.ndarray:
     """
     Returns the Yule-Walker estimates of a tvAR(p) model. Supports multi-dimensional time series for Monte-Carlo simulations.
 
@@ -76,6 +77,14 @@ def estimate_parameters_tvAR_p(time_series: np.ndarray, p: int, u_list: np.ndarr
     T = time_series.shape[0]
     time_series = time_series.reshape(T, -1) # make sure time series shape is (T, n_realisations)
     estimates = np.empty(shape=(u_list.shape[0], p + 1, time_series.shape[1])) # (alpha_1, ..., alpha_p, sigma) for each time series at each point u
+
+    if reflect_ts:
+        # Reduce edge effects
+        right = estimate_local_mean(time_series.reshape(-1, 1), T, Kernel("one-sided epanechnikov (L)"), bandwidth)   
+        left = estimate_local_mean(time_series.reshape(-1, 1), 1, Kernel("one-sided epanechnikov (R)"), bandwidth)   
+        time_series = reflect_time_series(time_series, left, right)
+        u_list = convert_u_list(u_list)
+        T = time_series.shape[0]
 
     for i, u_0 in enumerate(u_list):
         t_0 = int(u_0 * T)
