@@ -5,8 +5,8 @@ import scipy
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-from statsmodels.tsa.stattools import pacf
-from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
+# from statsmodels.tsa.stattools import pacf
+# from statsmodels.graphics.tsaplots import plot_pacf, plot_acf
 
 from .kernels import Kernel
 from .estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p 
@@ -144,10 +144,10 @@ def make_general_plots(time_series, p=1, k=3):
     ax.set_title("sigma")
 
     # PLOT ACF / PACF
-    fig2, axs2 = plt.subplots(1, 2)
-    pacf_, conf_int = pacf(time_series, nlags=10, alpha=0.05)
-    plot_pacf(time_series, method='ywm', ax=axs2[0], lags=np.arange(10), alpha=0.05, markersize=3)
-    plot_acf(time_series, ax=axs2[1], lags=np.arange(10), alpha=0.05, markersize=3)
+    # fig2, axs2 = plt.subplots(1, 2)
+    # pacf_, conf_int = pacf(time_series, nlags=10, alpha=0.05)
+    # plot_pacf(time_series, method='ywm', ax=axs2[0], lags=np.arange(10), alpha=0.05, markersize=3)
+    # plot_acf(time_series, ax=axs2[1], lags=np.arange(10), alpha=0.05, markersize=3)
 
     # PLOT Interpolation for one coefficient
     fig, ax = plt.subplots()
