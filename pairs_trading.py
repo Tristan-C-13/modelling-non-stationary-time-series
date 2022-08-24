@@ -1,3 +1,5 @@
+import os
+os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 import pandas as pd
 import pickle
@@ -40,6 +42,8 @@ if __name__ == '__main__':
     strat3 = Strategy3(data_df, T, p, k, 1, 0.25, filename="")
     portfolio_3 = strat3.simulate_trading(reflected_time_series=True)
     print(portfolio_3.hit_ratio)
+    # portfolio_3_bis = strat3.simulate_trading(reflected_time_series=False)
+    # print(portfolio_3_bis.hit_ratio)
 
     # with (
     #     open('data/trading_simulations/strat1-1000.pickle', 'rb') as f1,
