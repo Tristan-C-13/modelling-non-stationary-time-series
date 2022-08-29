@@ -88,7 +88,8 @@ if __name__ == '__main__':
     T_list = [100, 1000, 10_000]
     u_list = np.linspace(0, 1, 100, endpoint=False)
     n_realisations = 500
-    reflect_time_series = True
+    reflect_time_series = False
+    kernel_str = "quadratic"
 
 
     fig = plt.figure(constrained_layout=True)
@@ -109,7 +110,7 @@ if __name__ == '__main__':
         # Estimate coefficients
         epsilon = np.random.normal(0, 1, size=(T, n_realisations))
         X = simulate_tvAR_p(1, np.zeros(n_realisations), epsilon, [alpha], sigma)
-        yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel("epanechnikov"), bandwidth, reflect_time_series)
+        yw_estimates = estimate_parameters_tvAR_p(X, 1, u_list, Kernel(kernel_str), bandwidth, reflect_time_series)
         alpha_hat = yw_estimates[:, 0, :]
         sigma_hat = yw_estimates[:, 1, :]
 
@@ -132,5 +133,5 @@ if __name__ == '__main__':
     fig_alpha.legend(lines, ("Approximation", "True curve"), loc=(0.75, 0.96), ncol=2)
     fig_sigma.legend(lines, ("Approximation", "True curve"), loc=(0.75, 0.96), ncol=2)
     
-    # plt.savefig("convergence-yw-estimators.pdf")
+    # plt.savefig("convergence-yw-estimators-uniform.pdf")
     plt.show()

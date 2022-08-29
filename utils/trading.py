@@ -7,6 +7,7 @@ import pickle
 from abc import ABC, abstractclassmethod
 from dataclasses import dataclass
 
+from .data_processing import reflect_time_series
 from .estimation import estimate_parameters_tvAR_p, forecast_future_values_tvAR_p, estimate_local_mean, estimate_local_autocovariance
 from .kernels import Kernel
 from .interpolation import extrapolate_parameters
@@ -107,7 +108,7 @@ class Portfolio:
 ##################
 # TRADES / SIGNALS
 ##################
-def get_forecast_zscore(time_series, p=1, k=3, kernel_str="epanechnikov", reflect_time_series=False):
+def get_forecast_zscore(time_series, p=1, k=3, kernel_str="epanechnikov", reflect_time_series_bool=False):
     """
     For a given time series, returns the forecasted value and the associated z-score, used to determine if a trade is entered or not.
 
@@ -118,16 +119,20 @@ def get_forecast_zscore(time_series, p=1, k=3, kernel_str="epanechnikov", reflec
     T = time_series.shape[0]
     b_T = 0.1 * T ** (-1/5)
 
-    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel(kernel_str), bandwidth=b_T, reflect_ts=reflect_time_series)
+    theta_hat = estimate_parameters_tvAR_p(time_series=time_series, p=p, u_list=u_list, kernel=Kernel(kernel_str), bandwidth=b_T, reflect_ts=reflect_time_series_bool)
     alpha_hat = theta_hat[:, :-1, :].squeeze(axis=2)
     sigma_hat = theta_hat[:, -1, :].squeeze()
 
     alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=k)
     x_star = forecast_future_values_tvAR_p(alpha_extrapolated, time_series)
     
-    # Localized version of the sample mean / std on the last 36 hours. The local point is chosen in the middle of the interval
-    localized_mean = estimate_local_mean(time_series.reshape(-1, 1), T, Kernel("one-sided epanechnikov (L)"), b_T)   
-    localized_std = np.sqrt(estimate_local_autocovariance(time_series.reshape(-1, 1), T, 0, Kernel("one-sided epanechnikov (L)"), b_T))
+    # Localized version of the z-score computed using the reflected time series
+    right = estimate_local_mean(time_series.reshape(-1, 1), T, Kernel("one-sided epanechnikov (L)"), b_T)   
+    new_time_series = reflect_time_series(time_series, right_point=right)
+    localized_mean = estimate_local_mean(new_time_series.reshape(-1, 1), 2*T, Kernel("epanechnikov"), b_T)   
+    localized_std = np.sqrt(estimate_local_autocovariance(new_time_series.reshape(-1, 1), 2*T, 0, Kernel("one-sided epanechnikov (L)"), b_T)) 
+    # localized_mean = estimate_local_mean(time_series.reshape(-1, 1), T, Kernel("one-sided epanechnikov (L)"), b_T)   
+    # localized_std = np.sqrt(estimate_local_autocovariance(time_series.reshape(-1, 1), T, 0, Kernel("one-sided epanechnikov (L)"), b_T))
     z = (x_star - localized_mean) / localized_std
 
     return (x_star, z)
@@ -184,7 +189,7 @@ def get_actions_and_forecasts(time_series, threshold=1, n_forecasts=50, p=1, k=3
     z_list = np.empty(n_forecasts)
     forecasts = np.empty(n_forecasts)
     for i, time_series_i in enumerate(windows):
-        forecast, z_score = get_forecast_zscore(time_series_i, p, k, reflect_time_series=reflect_time_series)
+        forecast, z_score = get_forecast_zscore(time_series_i, p, k, reflect_time_series_bool=reflect_time_series)
         action = check_entry_trade(z_score, threshold)
         actions[i] = action
         forecasts[i] = forecast
@@ -272,7 +277,7 @@ class TradingStrategy(ABC):
             # Update crypto value
             portfolio.update_crypto(btc_close, eth_close)
             # Get entry trade signal
-            forecast, z_score = get_forecast_zscore(time_series_i, self.p, self.k, reflect_time_series=reflected_time_series)
+            forecast, z_score = get_forecast_zscore(time_series_i, self.p, self.k, reflect_time_series_bool=reflected_time_series)
             action = check_entry_trade(z_score, self.entry_threshold)
             # Close previous positions
             if self.can_exit_trade(z_score, action, portfolio):

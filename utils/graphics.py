@@ -24,11 +24,16 @@ def plot_interpolation(y, y_interpolation, ax, num_points=10, interpol_step=0.1,
     """
     Plots the interpolation of the time series y and the true series on the same graph.
     """
-    x = np.linspace(0, len(y)-1, num=len(y))
-    ax.scatter(x, y, label='true points')
+    x = np.linspace(1, len(y), num=len(y))
+    ax.scatter(x / len(y), y, label=r'$\hat{\alpha}(t/T)$')
+    ax.plot(x / len(y), y, alpha=0.5)
 
     x_interpolation = np.arange(x[int(len(y) - (n_forecasts + num_points)) + 1], x[-1] + n_forecasts + interpol_step, step=interpol_step)
-    ax.plot(x_interpolation, y_interpolation, color='red', linestyle='--', label='spline interpolation')
+    ax.plot(x_interpolation / len(y), y_interpolation, color='red', linestyle='--', label='spline interpolation')
+    ax.scatter(x_interpolation[-1] / len(y), y_interpolation[-1], color='red', marker='x', label=r'extrapolation $\hat{\alpha}\left(\frac{T+1}{T} \right)$')
+    ax.set_xlabel(r"$t/T$")
+    ax.set_ylabel(r"$\hat{\alpha}$")
+    ax.set_title(r"Interpolation of $\hat{\alpha}$")
     ax.legend()
 
     
@@ -127,21 +132,24 @@ def make_general_plots(time_series, p=1, k=3):
     sigma_hat = theta_hat[:, -1, :].squeeze()
 
     # PLOT DATA TIME SERIES + COEFFICIENTS TIME SERIES
-    fig = plt.figure(constrained_layout=True)
-    subfigs = fig.subfigures(3, 1)
-    # spread time series
-    ax = subfigs[0].subplots(1, 1)
-    ax.plot(time_series)
-    ax.set_title("Spread")
-    # alpha
-    axs = subfigs[1].subplots(1, p) if p > 1 else [subfigs[1].subplots(1, p)]
-    for i in range(p):
-        axs[i].plot(u_list, alpha_hat[:, i])
-        axs[i].set_title(f"alpha_{i+1}")
-    # sigma
-    ax = subfigs[2].subplots(1, 1)
-    ax.plot(u_list, sigma_hat)
-    ax.set_title("sigma")
+    # fig = plt.figure(constrained_layout=True)
+    # subfigs = fig.subfigures(3, 1)
+    # # spread time series
+    # ax = subfigs[0].subplots(1, 1)
+    # ax.plot(np.linspace(0, 1, len(time_series), endpoint=True), time_series)
+    # ax.set_title("Spread", fontsize=13)
+    # ax.set_xlabel("$t/T$")
+    # # alpha
+    # axs = subfigs[1].subplots(1, p) if p > 1 else [subfigs[1].subplots(1, p)]
+    # for i in range(p):
+    #     axs[i].plot(u_list, alpha_hat[:, i])
+    #     axs[i].set_title("$\\hat{\\alpha}(t/T)$", fontsize=13) #_{" + str(i+1) + "}$")
+    #     axs[i].set_xlabel("$t/T$")
+    # # sigma
+    # ax = subfigs[2].subplots(1, 1)
+    # ax.plot(u_list, sigma_hat)
+    # ax.set_title("$\\hat{\\sigma}(t/T)$", fontsize=13)
+    # ax.set_xlabel("$t/T$")
 
     # PLOT ACF / PACF
     # fig2, axs2 = plt.subplots(1, 2)
@@ -149,16 +157,19 @@ def make_general_plots(time_series, p=1, k=3):
     # plot_pacf(time_series, method='ywm', ax=axs2[0], lags=np.arange(10), alpha=0.05, markersize=3)
     # plot_acf(time_series, ax=axs2[1], lags=np.arange(10), alpha=0.05, markersize=3)
 
-    # PLOT Interpolation for one coefficient
+    # # PLOT Interpolation for one coefficient
     fig, ax = plt.subplots()
     alpha_interpolation = interpolate_and_extrapolate(alpha_hat[:, 0], k=k)
     plot_interpolation(alpha_hat[:, 0], alpha_interpolation, ax)
     
-    # PLOT forecast of the time series
-    fig, ax = plt.subplots()
-    alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=3) # shape (n_forecasts, alpha_hat.shape[1])
-    preds = forecast_future_values_tvAR_p(alpha_extrapolated, time_series)
-    ax.plot(np.arange(19, 20+len(preds)), np.concatenate([[time_series[-1]], preds]), color='red', label='prediction')
-    ax.plot(np.arange(20), time_series[-20:], label='time series')
-    ax.set_title("last 20 points of the time series + forecast")
-    ax.legend()
+    # # PLOT forecast of the time series
+    # fig, ax = plt.subplots()
+    # alpha_extrapolated, sigma_extrapolated = extrapolate_parameters(alpha_hat, sigma_hat, num_points=10, interpol_step=1, n_forecasts=1, k=3) # shape (n_forecasts, alpha_hat.shape[1])
+    # preds = forecast_future_values_tvAR_p(alpha_extrapolated, time_series)
+    # ax.plot((T - 50 + np.arange(50, 51+len(preds))) / T, np.concatenate([[time_series[-1]], preds]), color='red', linestyle='--')
+    # ax.scatter((T + len(preds)) / T, preds[-1], color='red', marker='x', label=r"forecast $s_{T+1}$")
+    # ax.plot((T - 50 + np.arange(1, 51)) / T, time_series[-50:], label=r'time series $s_{t,T}$')
+    # ax.set_title("last 50 points of the time series + forecast")
+    # ax.set_xlabel(r"$t/T$")
+    # ax.set_ylabel("Spread")
+    # ax.legend()
