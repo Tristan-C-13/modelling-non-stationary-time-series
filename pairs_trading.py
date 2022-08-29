@@ -4,6 +4,7 @@ os.environ['OPENBLAS_NUM_THREADS'] = '1'
 import numpy as np
 import pandas as pd
 import pickle
+import logging
 
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -23,14 +24,15 @@ if __name__ == '__main__':
     T = 10_000  # length of each time series
 
     # DATA & SPREAD: BTC-USD / ETH-USD
-    n_simulations = 200
+    n_simulations = 5000
     start, end = get_dates_str(n_simulations + T - 1, '2022-08-14')
     # data_df = load_spread_btc_eth(start, end)
     data_df = load_spread_btc_eth(end=end)
 
 
     # TUNING ENTRY THRESHOLD
-    data_df_tune = data_df.loc['2019-06-15':start, :]
+    logging.info("TUNING")
+    data_df_tune = data_df.loc['2019-01-13':start, :]
     z_entry_list = np.linspace(1, 2.5, 15) # grid
 
     ratio_df = pd.DataFrame(index=z_entry_list, columns=['strat1', 'strat2', 'strat3'], dtype=float)
@@ -50,9 +52,11 @@ if __name__ == '__main__':
 
 
     # TRADING SIMULATION
-    data_df_simulation = data_df[start:, :]
+    logging.info("SIMULATIONS")
+    data_df_simulation = data_df.loc[start:, :]
 
-    z_entry_star1 = z_entry_star_series.at['strat1']
+    # z_entry_star1 = z_entry_star_series.at['strat1']
+    z_entry_star1=1
     strat1 = Strategy1(data_df_simulation, T, p, k, z_entry_star1, filename=f"strat1_n=5000_z={z_entry_star1}-final")
     portfolio_1 = strat1.simulate_trading(reflected_time_series=False)
     print(portfolio_1.hit_ratio)
