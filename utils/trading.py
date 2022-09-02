@@ -1,6 +1,6 @@
-from xmlrpc.client import Boolean
 import numpy as np
 import pandas as pd
+from matplotlib.lines import Line2D
 
 import logging
 import pickle
@@ -103,6 +103,16 @@ class Portfolio:
                             ax.scatter(i, max_, marker='x', color='red')
 
         ax.legend();
+        ax.set_xlabel("time index");
+        ax.set_ylabel("P&L")
+        h, l = ax.get_legend_handles_labels()
+        h.append(Line2D([0], [0], marker='^', color='green', label='SHORT BTC', linestyle='', markerfacecolor='green', markersize=10))
+        h.append(Line2D([0], [0], marker='v', color='black', label='LONG BTC', linestyle='', markerfacecolor='black', markersize=10))
+        h.append(Line2D([0], [0], marker='x', color='red', label='CLOSE', linestyle='', markerfacecolor='red', markersize=10))
+        l.append('SHORT BTC')
+        l.append('LONG BTC')
+        l.append('CLOSE')
+        ax.legend(h, l)
 
 
 ##################
@@ -286,8 +296,10 @@ class TradingStrategy(ABC):
             if self.can_enter_trade(action, portfolio):
                 side_btc = 'BUY' if action == 'LONG' else 'SELL'
                 side_eth = 'BUY' if action == 'SHORT' else 'SELL'
-                portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=1)
-                portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=1)
+                vol_btc = 20_000 / btc_close # trade $20 000 worth of BTC
+                vol_eth = 20_000 / eth_close # trade $20 000 worth of ETH
+                portfolio.insert_order('BTC-USD', side=side_btc, price=btc_close, volume=vol_btc)
+                portfolio.insert_order('ETH-USD', side=side_eth, price=eth_close, volume=vol_eth)
                 entry_actions[i] = action
             # Update history 
             portfolio.update_history(date, action, forecast, z_score)

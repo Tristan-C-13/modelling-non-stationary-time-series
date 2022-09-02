@@ -26,7 +26,6 @@ if __name__ == '__main__':
     # DATA & SPREAD: BTC-USD / ETH-USD
     n_simulations = 5000
     start, end = get_dates_str(n_simulations + T - 1, '2022-08-14')
-    # data_df = load_spread_btc_eth(start, end)
     data_df = load_spread_btc_eth(end=end)
 
 
@@ -48,26 +47,31 @@ if __name__ == '__main__':
     
     z_entry_star_series = ratio_df.idxmax(axis=0, skipna=True)
     ratio_df.to_csv('ratio_df.csv')
-    print(z_entry_star_series)
 
 
     # TRADING SIMULATION
     logging.info("SIMULATIONS")
     data_df_simulation = data_df.loc[start:, :]
 
-    # z_entry_star1 = z_entry_star_series.at['strat1']
-    z_entry_star1=1
-    strat1 = Strategy1(data_df_simulation, T, p, k, z_entry_star1, filename=f"strat1_n=5000_z={z_entry_star1}-final")
+    z_entry_star1 = z_entry_star_series.at['strat1']   # 1.321429
+    strat1 = Strategy1(data_df_simulation, T, p, k, z_entry_star1, filename=f"strat1_n=5000-final-25000dollars2")
     portfolio_1 = strat1.simulate_trading(reflected_time_series=False)
     print(portfolio_1.hit_ratio)
 
-    z_entry_star2 = z_entry_star_series.at['strat2']
-    strat2 = Strategy2(data_df_simulation, T, p, k, z_entry_star2, filename=f"strat2_n=5000_z={z_entry_star2}-final")
+    z_entry_star2 = z_entry_star_series.at['strat2']   # 1.428571
+    strat2 = Strategy2(data_df_simulation, T, p, k, z_entry_star2, filename=f"strat2_n=5000-final-25000dollars2")
     portfolio_2 = strat2.simulate_trading(reflected_time_series=False)
     print(portfolio_2.hit_ratio)
 
-    z_entry_star3 = z_entry_star_series.at['strat3']
-    strat3 = Strategy3(data_df_simulation, T, p, k, z_entry_star3, 0.25, filename=f"strat3_n=5000_z={z_entry_star3}-final")
+    z_entry_star3 = z_entry_star_series.at['strat3']   # 1.214286	
+    strat3 = Strategy3(data_df_simulation, T, p, k, z_entry_star3, 0.75, filename=f"strat3_n=5000-final-25000dollars2")
     portfolio_3 = strat3.simulate_trading(reflected_time_series=False)
     print(portfolio_3.hit_ratio)
-    # plt.show()
+    
+
+    # PLOT P&L
+    fig, axs = plt.subplots(3, 1)
+    portfolio_1.plot_pnl_entries(axs[0])
+    portfolio_2.plot_pnl_entries(axs[1])
+    portfolio_3.plot_pnl_entries(axs[2])
+    plt.show()
